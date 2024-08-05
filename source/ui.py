@@ -8,7 +8,7 @@ from bpy.utils import (
 
 
 class NA_PT_Panel(Panel):
-    bl_label = "Node Arrange"
+    bl_label = "Node Arranger"
     bl_space_type = "NODE_EDITOR"
     bl_region_type = "UI"
     bl_category = "Arrange"
