@@ -189,7 +189,7 @@ class Side(object):
         instance.__dict__[self.name] = round(val, 2)
 
 
-@dataclass
+@dataclass(slots=True)
 class Box:
     left: float = field(default=Side())
     bottom: float = field(default=Side())
