@@ -642,7 +642,7 @@ def ideal_x_movement(nodes, line_x):
 
         return movement
 
-    right, left = line_x
+    left, right = line_x
 
     if from_x:
         target_x, left = min(from_x, key=dist_from_x)
@@ -757,7 +757,7 @@ def move_outlier(node):
     if output_dist < 0 or output_dist < abs(input_dist):
         return
 
-    line_x = (get_right(node), abs_loc(node).x)
+    line_x = (abs_loc(node).x, get_right(node))
     movement = ideal_x_movement([node], line_x)
     if link_stretch([node]) >= link_stretch([node], movement):
         move(node, x=movement)
@@ -1881,7 +1881,7 @@ def arrange_all_framed_reroutes(frame_boxes):
 
             disperse_reroutes_x(segments)
 
-            top, bottom = frame_boxes[frame].line_y()
+            bottom, top = frame_boxes[frame].line_y()
             for reroute, old_loc in zip(reroutes, old_locs):
                 loc = abs_loc(reroute)
                 if loc.y > top or loc.y < bottom:
