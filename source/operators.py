@@ -398,18 +398,6 @@ def move_nodes(nodes, *, x=0, y=0):
             move(node, x=x, y=y)
 
 
-def update_y(box, movement):
-    tr, bl = box
-    tr.y += movement
-    bl.y += movement
-
-
-def update_x(box, movement):
-    tr, bl = box
-    tr.x += movement
-    bl.x += movement
-
-
 # -------------------------------------------------------------------
 #   Generate maps
 # -------------------------------------------------------------------
