@@ -1679,6 +1679,12 @@ def get_beyond(box1, boxes):
     return beyond, distances
 
 
+def has_closer(box1, boxes, movement):
+    for box2 in boxes.values():
+        if box2.left == box1.left and any(d < movement for d in get_beyond(box2, boxes)[1]):
+            return True
+
+
 def contract_x(frame_boxes, col_boxes):
     active_unframed = set(Maps.used_children.get(None, []))
     reroutes = active_unframed.difference(chain(*col_boxes))
@@ -1694,15 +1700,7 @@ def contract_x(frame_boxes, col_boxes):
         movement = min(distances, default=0)
         prev_right1 = box1.right
 
-        if movement <= 0:
-            continue
-
-        has_closer = any(
-          d < movement
-          for b in boxes.values()
-          for d in get_beyond(b, boxes)[1]
-          if b.left == box1.left)
-        if has_closer:
+        if movement <= 0 or has_closer(box1, boxes, movement):
             continue
 
         affected_keys = set()
