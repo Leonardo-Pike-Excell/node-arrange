@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "node_arranger"
-version = "1.0.3"
+version = "1.1.0"
 name = "Node Arranger"
 tagline = "Arrange node trees with the click of a button"
 maintainer = "Leonardo Pike-Excell <leonardopike.excell@gmail.com>"
