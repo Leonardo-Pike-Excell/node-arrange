@@ -15,8 +15,8 @@ from bpy.utils import (
 
 class NA_PG_Settings(PropertyGroup):
     margin: IntVectorProperty(
-      name="Margin",
-      description="Spacing between nodes",
+      name="Spacing",
+      description="Space between nodes",
       default=(70, 70),
       min=0,
       options=set(),
@@ -25,8 +25,8 @@ class NA_PG_Settings(PropertyGroup):
     )
 
     move_to_linked_y: BoolProperty(
-      name="Move to Linked",
-      description="Move nodes vertically towards their links",
+      name="Adjust Vertical",
+      description="Move nodes closer vertically to their linked neighbours",
       default=True,
       options=set(),
     )
