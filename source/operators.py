@@ -1691,6 +1691,9 @@ def contract_x(frame_boxes, col_boxes):
     all_col_boxes = {tuple([r]): get_box([r]) for r in reroutes} | col_boxes
     boxes = sorted_boxes(frame_boxes | all_col_boxes)
 
+    values = tuple(boxes.values())
+    nodes = set(frame_boxes).union(chain(*all_col_boxes))
+
     prev_right1 = None
     for box1 in boxes.values():
         if prev_right1 is not None and prev_right1 >= box1.right:
@@ -1703,6 +1706,12 @@ def contract_x(frame_boxes, col_boxes):
         if movement <= 0 or has_closer(box1, boxes, movement):
             continue
 
+        # Optimization: minimize location updates
+        total_center = (values[0].left + values[-1].right) / 2
+        if box1.center.x - total_center < 0:
+            beyond = nodes.difference(beyond)
+            movement *= -1
+
         affected_keys = set()
         for node in beyond:
             move(node, x=-movement)
@@ -1713,6 +1722,8 @@ def contract_x(frame_boxes, col_boxes):
 
         for affected in affected_keys:
             boxes[affected].move(x=-movement)
+
+        prev_right1 = box1.right
 
 
 # -------------------------------------------------------------------
