@@ -1046,15 +1046,8 @@ def get_discrete_predecessors(node):
     yield node
 
     from_nodes = get_input_nodes(node)
-
-    not_linked_singly = len(from_nodes) != 1 or len(get_output_nodes(node)) != 1
-    if not_linked_singly or from_nodes[0].parent != node.parent:
-        return
-
-    columns = Maps.frame_columns[node.parent]
-    i = next(i for i, c in enumerate(columns) if node in c)
-    dist = abs_loc(node).x - max(map(get_right, columns[i + 1]))
-    if dist <= MARGIN.x:
+    linked_singly = len(from_nodes) == 1 and len(get_output_nodes(node)) == 1
+    if linked_singly and from_nodes[0].parent == node.parent:
         yield from get_discrete_predecessors(from_nodes[0])
 
 
