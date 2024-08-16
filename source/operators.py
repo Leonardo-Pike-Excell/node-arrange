@@ -1042,6 +1042,168 @@ def move_to_linked_y(columns):
 
 
 # -------------------------------------------------------------------
+#   Disperse Y
+# -------------------------------------------------------------------
+
+
+def get_overlapping_x(real_boxes, boxes):
+    seen = set()
+    overlapping_x = defaultdict(list)
+    for a, box1 in real_boxes.items():
+        for b, box2 in boxes.items():
+            if {a, b} in seen or a == b:
+                continue
+
+            if lines_overlap(box1.line_x(), box2.line_x()) and not is_parented(a, b):
+                overlapping_x[a].append(b)
+                if b in real_boxes:
+                    overlapping_x[b].append(a)
+
+            seen.add(frozenset((a, b)))
+
+    return overlapping_x
+
+
+def rect_overlap_vector(key1, overlapping_x, boxes):
+    box1 = boxes[key1]
+    center1 = box1.center
+
+    vec = Vector((0, 0))
+    overlapping_keys = []
+
+    for key2 in overlapping_x[key1]:
+        if box1.overlaps(boxes[key2]):
+            vec += boxes[key2].center - center1
+            overlapping_keys.append(key2)
+
+    if not overlapping_keys:
+        return (vec.y, overlapping_keys)
+
+    vec /= len(overlapping_keys)
+    vec.negate()
+    vec.normalize()
+
+    return (vec.y * DISPERSE_MULT, overlapping_keys)
+
+
+def get_merged_lines(lines):
+    lines.sort(key=itemgetter(0))
+    merged = [lines[0]]
+    for current in lines[1:]:
+        previous = merged[-1]
+        if current[0] <= previous[1]:
+            previous[1] = max(previous[1], current[1])
+        else:
+            merged.append(current)
+
+    return merged
+
+
+def get_better_movement(box, lines_y, movement):
+    center = box.center.y
+    height = box.height
+
+    upper_line = (center, center + height)
+    upper_overlap = max([l[0] - center for l in lines_y if lines_overlap(upper_line, l)],
+      default=0)
+
+    lower_line = (center - height, center)
+    lower_overlap = min([center - l[1] for l in lines_y if lines_overlap(lower_line, l)],
+      default=0)
+
+    if movement > 0:
+        diff = upper_overlap - lower_overlap
+        better_movement = -DISPERSE_MULT
+    else:
+        diff = lower_overlap - upper_overlap
+        better_movement = DISPERSE_MULT
+
+    return better_movement if diff > height / 2 else movement
+
+
+def dispersed(frame_boxes, col_boxes):
+
+    # Most code here is to solve three issues that arise when dispersing
+    # rectangles while also disallowing some from moving:
+    #
+    # 1. Since `col_boxes` can't move, frames can get trapped between them.
+    #    To avoid this, if a frame has switched directions, its movement is
+    #    set to its previous movement.
+    #
+    # 2. If frames affect each other, and move in the same direction, they
+    #    unnecessarily drag each other down. To avoid this, only the frame
+    #    furthest in the movement direction is allowed to move.
+    #
+    # 3. If two frames' vertical centers are equal, then they can't disperse.
+    #    To avoid this, frames are manually dispersed.
+
+    old_tops = {f: b.top for f, b in frame_boxes.items()}
+
+    boxes = frame_boxes | col_boxes
+    overlapping_x = get_overlapping_x(frame_boxes, boxes)
+    pairs = [(boxes[k1], boxes[k2]) for k1, v in overlapping_x.items() for k2 in v]
+
+    prev_movements = {}
+    frozen_competition = {}
+
+    while any(b1.overlaps(b2) for b1, b2 in pairs):
+        for frame1, box1 in frame_boxes.items():
+            if frame1 in frozen_competition:
+                if box1.overlaps(frozen_competition[frame1]):
+                    continue
+                else:
+                    del frozen_competition[frame1]
+
+            movement, overlapping_keys = rect_overlap_vector(frame1, overlapping_x, boxes)
+
+            if not overlapping_keys:
+                if frame1 in prev_movements:
+                    del prev_movements[frame1]
+
+                continue
+
+            overlapping_frames = [k for k in overlapping_keys if k in frame_boxes]
+
+            if round(movement, 1) == 0:
+                nudge = DISPERSE_MULT
+                if frame1 in prev_movements and prev_movements[frame1] < 0:
+                    nudge *= -1
+
+                frame_boxes[frame1].move(y=nudge)
+                if overlapping_frames:
+                    frame_boxes[overlapping_frames[0]].move(y=-nudge)
+
+            competing = [
+              f for f in overlapping_frames
+              if f in prev_movements and (prev_movements[f] > 0) == (movement > 0)]
+            if competing:
+                competing.append(frame1)
+                if movement > 0:
+                    favoured = max(competing, key=lambda f: frame_boxes[f].bottom)
+                else:
+                    favoured = min(competing, key=lambda f: frame_boxes[f].top)
+
+                competing.remove(favoured)
+                for frame2 in competing:
+                    if favoured not in frozen_competition:
+                        frozen_competition[frame2] = frame_boxes[favoured]
+
+                if frame1 in frozen_competition:
+                    continue
+
+            lines_y = [boxes[k].line_y() for k in overlapping_x[frame1]]
+            movement = get_better_movement(box1, get_merged_lines(lines_y), movement)
+
+            if frame1 in prev_movements and (prev_movements[frame1] > 0) != (movement > 0):
+                movement = prev_movements[frame1]
+
+            box1.move(y=movement)
+            prev_movements[frame1] = movement
+
+    return {f: t - boxes[f].top for f, t in old_tops.items()}
+
+
+# -------------------------------------------------------------------
 #   Align discrete rows
 # -------------------------------------------------------------------
 
@@ -1350,163 +1512,6 @@ def get_nested_boxes(frame_boxes):
         yield (nested_frame_boxes, nested_col_boxes)
 
         yield from get_nested_boxes(nested_frame_boxes)
-
-
-def get_overlapping_x(real_boxes, boxes):
-    seen = set()
-    overlapping_x = defaultdict(list)
-    for a, box1 in real_boxes.items():
-        for b, box2 in boxes.items():
-            if {a, b} in seen or a == b:
-                continue
-
-            if lines_overlap(box1.line_x(), box2.line_x()) and not is_parented(a, b):
-                overlapping_x[a].append(b)
-                if b in real_boxes:
-                    overlapping_x[b].append(a)
-
-            seen.add(frozenset((a, b)))
-
-    return overlapping_x
-
-
-def rect_overlap_vector(key1, overlapping_x, boxes):
-    box1 = boxes[key1]
-    center1 = box1.center
-
-    vec = Vector((0, 0))
-    overlapping_keys = []
-
-    for key2 in overlapping_x[key1]:
-        if box1.overlaps(boxes[key2]):
-            vec += boxes[key2].center - center1
-            overlapping_keys.append(key2)
-
-    if not overlapping_keys:
-        return (vec.y, overlapping_keys)
-
-    vec /= len(overlapping_keys)
-    vec.negate()
-    vec.normalize()
-
-    return (vec.y * DISPERSE_MULT, overlapping_keys)
-
-
-def get_merged_lines(lines):
-    lines.sort(key=itemgetter(0))
-    merged = [lines[0]]
-    for current in lines[1:]:
-        previous = merged[-1]
-        if current[0] <= previous[1]:
-            previous[1] = max(previous[1], current[1])
-        else:
-            merged.append(current)
-
-    return merged
-
-
-def get_better_movement(box, lines_y, movement):
-    center = box.center.y
-    height = box.height
-
-    upper_line = (center, center + height)
-    upper_overlap = max([l[0] - center for l in lines_y if lines_overlap(upper_line, l)],
-      default=0)
-
-    lower_line = (center - height, center)
-    lower_overlap = min([center - l[1] for l in lines_y if lines_overlap(lower_line, l)],
-      default=0)
-
-    if movement > 0:
-        diff = upper_overlap - lower_overlap
-        better_movement = -DISPERSE_MULT
-    else:
-        diff = lower_overlap - upper_overlap
-        better_movement = DISPERSE_MULT
-
-    return better_movement if diff > height / 2 else movement
-
-
-def dispersed(frame_boxes, col_boxes):
-
-    # Most code here is to solve three issues that arise when dispersing
-    # rectangles while also disallowing some from moving:
-    #
-    # 1. Since `col_boxes` can't move, frames can get trapped between them.
-    #    To avoid this, if a frame has switched directions, its movement is
-    #    set to its previous movement.
-    #
-    # 2. If frames affect each other, and move in the same direction, they
-    #    unnecessarily drag each other down. To avoid this, only the frame
-    #    furthest in the movement direction is allowed to move.
-    #
-    # 3. If two frames' vertical centers are equal, then they can't disperse.
-    #    To avoid this, frames are manually dispersed.
-
-    old_tops = {f: b.top for f, b in frame_boxes.items()}
-
-    boxes = frame_boxes | col_boxes
-    overlapping_x = get_overlapping_x(frame_boxes, boxes)
-    pairs = [(boxes[k1], boxes[k2]) for k1, v in overlapping_x.items() for k2 in v]
-
-    prev_movements = {}
-    frozen_competition = {}
-
-    while any(b1.overlaps(b2) for b1, b2 in pairs):
-        for frame1, box1 in frame_boxes.items():
-            if frame1 in frozen_competition:
-                if box1.overlaps(frozen_competition[frame1]):
-                    continue
-                else:
-                    del frozen_competition[frame1]
-
-            movement, overlapping_keys = rect_overlap_vector(frame1, overlapping_x, boxes)
-
-            if not overlapping_keys:
-                if frame1 in prev_movements:
-                    del prev_movements[frame1]
-
-                continue
-
-            overlapping_frames = [k for k in overlapping_keys if k in frame_boxes]
-
-            if round(movement, 1) == 0:
-                nudge = DISPERSE_MULT
-                if frame1 in prev_movements and prev_movements[frame1] < 0:
-                    nudge *= -1
-
-                frame_boxes[frame1].move(y=nudge)
-                if overlapping_frames:
-                    frame_boxes[overlapping_frames[0]].move(y=-nudge)
-
-            competing = [
-              f for f in overlapping_frames
-              if f in prev_movements and (prev_movements[f] > 0) == (movement > 0)]
-            if competing:
-                competing.append(frame1)
-                if movement > 0:
-                    favoured = max(competing, key=lambda f: frame_boxes[f].bottom)
-                else:
-                    favoured = min(competing, key=lambda f: frame_boxes[f].top)
-
-                competing.remove(favoured)
-                for frame2 in competing:
-                    if favoured not in frozen_competition:
-                        frozen_competition[frame2] = frame_boxes[favoured]
-
-                if frame1 in frozen_competition:
-                    continue
-
-            lines_y = [boxes[k].line_y() for k in overlapping_x[frame1]]
-            movement = get_better_movement(box1, get_merged_lines(lines_y), movement)
-
-            if frame1 in prev_movements and (prev_movements[frame1] > 0) != (movement > 0):
-                movement = prev_movements[frame1]
-
-            box1.move(y=movement)
-            prev_movements[frame1] = movement
-
-    return {f: t - boxes[f].top for f, t in old_tops.items()}
 
 
 def disperse_frames(frame_boxes, col_boxes):
