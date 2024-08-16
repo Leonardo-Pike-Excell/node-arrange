@@ -2098,10 +2098,9 @@ class NA_OT_ArrangeSelected(Operator):
         if None in frame_columns:
             regenerate_columns(None)
 
-        if settings.move_to_linked_y:
-            for frame, columns in frame_columns.items():
-                move_to_linked_y(columns)
-                move_to_linked_y(columns)
+        for frame, columns in frame_columns.items():
+            move_to_linked_y(columns)
+            move_to_linked_y(columns)
 
         for frame in frame_columns:
             align_discrete_rows(frame)

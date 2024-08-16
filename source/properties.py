@@ -24,21 +24,6 @@ class NA_PG_Settings(PropertyGroup):
       size=2,
     )
 
-    move_to_linked_y: BoolProperty(
-      name="Adjust Vertical",
-      description="Move nodes closer vertically to their linked neighbours",
-      default=True,
-      options=set(),
-    )
-
-    move_to_linked_y_type: EnumProperty(
-      items=(('PARTIAL', "Partial", ""), ('FULL', "Full", "")),
-      name="Mode",
-      description="Mode",
-      default='PARTIAL',
-      options=set(),
-    )
-
 
 classes = [NA_PG_Settings]
 

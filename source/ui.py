@@ -24,12 +24,6 @@ class NA_PT_Panel(Panel):
 
         layout.prop(settings, "margin")
 
-        row = layout.row(align=True, heading="Adjust Vertical")
-        row.prop(settings, "move_to_linked_y", text="")
-        sub = row.row(align=True)
-        sub.active = settings.move_to_linked_y
-        sub.prop(settings, "move_to_linked_y_type", text="")
-
 
 classes = [NA_PT_Panel]
 
