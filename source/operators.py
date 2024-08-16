@@ -811,12 +811,9 @@ def line_overlap_vector(target, lines):
     return clamp(-fmean(y), -1, 1) if any(y) else 1
 
 
-def disperse_nodes_y(virtual_locs):
+def disperse_nodes_y(col):
     margin = MARGIN.y / 2
-
-    lines = {
-      n: [get_bottom(n, y) - margin, get_top(n, y) + margin]
-      for n, y in virtual_locs.items()}
+    lines = {n: [get_bottom(n) - margin, get_top(n) + margin] for n in col}
 
     pairs = [(lines[n1], lines[n2]) for n1, n2 in combinations(lines, 2)]
     while any(lines_overlap(l1, l2) for l1, l2 in pairs):
@@ -837,7 +834,7 @@ def regenerate_columns(frame):
     align_columns(new_columns)
 
     for col in new_columns:
-        disperse_nodes_y({n: abs_loc(n).y for n in col})
+        disperse_nodes_y(col)
         col.sort(key=lambda n: abs_loc(n).y)
 
     new_columns.reverse()
