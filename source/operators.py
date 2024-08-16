@@ -1137,7 +1137,8 @@ def saves_space(box1, box2, boxes):
     return height > COMPACT_HEIGHT + MARGIN.y * 2
 
 
-def get_overlapping(to_move, boxes, box1, op):
+def get_overlapping(to_move, boxes, key1, op):
+    box1 = boxes[key1]
     frames_to_move = {n.parent for n in to_move}
     overlapping = []
     for key2, box2 in boxes.items():
@@ -1145,7 +1146,7 @@ def get_overlapping(to_move, boxes, box1, op):
             continue
 
         if isinstance(key2, NodeFrame):
-            valid = key2 in frames_to_move
+            valid = key2 in frames_to_move and not is_parented(key1, key2)
         else:
             valid = to_move.intersection(key2)
 
@@ -1198,7 +1199,7 @@ def compact_frames_x(frame_boxes, col_boxes):
 
         # -------------------------------------------------------------------
 
-        for key2 in get_overlapping(nodes_right, boxes, box1, gt):
+        for key2 in get_overlapping(nodes_right, boxes, frame1, gt):
             box2 = boxes[key2]
 
             if key2 in frame_boxes:
@@ -1213,7 +1214,7 @@ def compact_frames_x(frame_boxes, col_boxes):
 
         # -------------------------------------------------------------------
 
-        for key2 in get_overlapping(nodes_left, boxes, box1, lt):
+        for key2 in get_overlapping(nodes_left, boxes, frame1, lt):
             box2 = boxes[key2]
 
             if key2 in frame_boxes:
