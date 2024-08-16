@@ -1349,7 +1349,7 @@ def is_parented(a, b):
     if not isinstance(a, NodeFrame) or not isinstance(b, NodeFrame):
         return False
 
-    return a.parent == b or b.parent == a
+    return b in get_parents(a) or a in get_parents(b)
 
 
 def get_overlapping_x(real_boxes, boxes):
