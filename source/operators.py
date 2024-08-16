@@ -799,6 +799,36 @@ def align_columns(columns):
         move_nodes(to_move, x=movement)
 
 
+def line_overlap_vector(target, lines):
+    l1 = lines[target]
+    center = sum(l1) / 2
+
+    y = [sum(l2) / 2 - center for n, l2 in lines.items() if target != n and lines_overlap(l1, l2)]
+
+    if not y:
+        return 0
+
+    return clamp(-fmean(y), -1, 1) if any(y) else 1
+
+
+def disperse_nodes_y(virtual_locs):
+    margin = MARGIN.y / 2
+
+    lines = {
+      n: [get_bottom(n, y) - margin, get_top(n, y) + margin]
+      for n, y in virtual_locs.items()}
+
+    pairs = [(lines[n1], lines[n2]) for n1, n2 in combinations(lines, 2)]
+    while any(lines_overlap(l1, l2) for l1, l2 in pairs):
+        for node, line in lines.items():
+            movement = line_overlap_vector(node, lines)
+            line[0] += movement
+            line[1] += movement
+
+    for node, line in lines.items():
+        move_to(node, y=corrected_y(node, line[1] - margin))
+
+
 def regenerate_columns(frame):
     for node in Maps.used_children[frame]:
         move_outlier(node)
@@ -879,6 +909,16 @@ def arrange_principled():
 # -------------------------------------------------------------------
 
 
+def get_real_sockets(socket):
+    node = socket.node
+    if node.bl_idname == 'NodeReroute':
+        new_socket = node.inputs[0] if socket.is_output else node.outputs[0]
+        for linked_socket in Maps.sockets[new_socket]:
+            yield from get_real_sockets(linked_socket)
+    else:
+        yield socket
+
+
 def get_linked_y_locs(node):
     y_locs = []
     is_reroute = node.bl_idname == 'NodeReroute'
@@ -895,7 +935,7 @@ def get_linked_y_locs(node):
             get_linked_socket_y = get_output_y
 
         socket_y = get_socket_y(socket, not is_reroute)
-        for linked_socket in Maps.sockets[socket]:
+        for linked_socket in chain(*[get_real_sockets(s) for s in Maps.sockets[socket]]):
             linked_y = get_linked_socket_y(linked_socket, is_reroute)
 
             if linked_socket.node.bl_idname == 'NodeReroute':
@@ -966,12 +1006,12 @@ def get_overlapping_lines(lines):
     return overlapping
 
 
-def partial_move_to_linked_y(virtual_locs):
+def limited_disperse_nodes_y(ideal_y_locs):
     margin = MARGIN.y / 2
 
     lines = {}
     most_moved = lambda ny: abs(abs_loc(ny[0]).y - ny[1])
-    for node, y in sorted(virtual_locs.items(), key=most_moved, reverse=True):
+    for node, y in sorted(ideal_y_locs.items(), key=most_moved, reverse=True):
         lines[node] = [get_bottom(node, y) - margin, get_top(node, y) + margin]
 
     while overlapping := get_overlapping_lines(lines):
@@ -982,42 +1022,13 @@ def partial_move_to_linked_y(virtual_locs):
         move_to(node, y=corrected_y(node, line[1] - margin))
 
 
-def line_overlap_vector(target, lines):
-    l1 = lines[target]
-    center = sum(l1) / 2
-
-    y = [sum(l2) / 2 - center for n, l2 in lines.items() if target != n and lines_overlap(l1, l2)]
-
-    if not y:
-        return 0
-
-    return clamp(-fmean(y), -1, 1) if any(y) else 1
-
-
-def disperse_nodes_y(virtual_locs):
-    margin = MARGIN.y / 2
-
-    lines = {
-      n: [get_bottom(n, y) - margin, get_top(n, y) + margin]
-      for n, y in virtual_locs.items()}
-
-    pairs = [(lines[n1], lines[n2]) for n1, n2 in combinations(lines, 2)]
-    while any(lines_overlap(l1, l2) for l1, l2 in pairs):
-        for node, line in lines.items():
-            movement = line_overlap_vector(node, lines)
-            line[0] += movement
-            line[1] += movement
-
-    for node, line in lines.items():
-        move_to(node, y=corrected_y(node, line[1] - margin))
-
-
 def move_to_linked_y(columns):
     nodes = tuple(chain(*columns))
+    reroutes = {n for n in nodes if n.bl_idname == 'NodeReroute'}
 
     subrows = []
     for key, row in groupby(sorted(nodes, key=get_top), get_top):
-        row = [n for n in row if n.bl_idname != 'NodeReroute']
+        row = [n for n in row if n not in reroutes]
         row_len = len(row)
 
         if row_len < 3:
@@ -1032,13 +1043,14 @@ def move_to_linked_y(columns):
         subrows.append(row[curr_idx:j + 1])
 
     line_y = get_box(nodes).line_y()
-    use_partial = bpy.context.scene.na_settings.move_to_linked_y_type == 'PARTIAL'
+
     for col in columns:
-        ideal_y_locs = {n: get_ideal_y(n, subrows, line_y) for n in col}
-        if use_partial:
-            partial_move_to_linked_y(ideal_y_locs)
-        else:
-            disperse_nodes_y(ideal_y_locs)
+        ideal_y_locs = {n: get_ideal_y(n, subrows, line_y) for n in col if n not in reroutes}
+        limited_disperse_nodes_y(ideal_y_locs)
+
+    for col in columns:
+        ideal_y_locs = {n: get_ideal_y(n, subrows, line_y) for n in col if n in reroutes}
+        limited_disperse_nodes_y(ideal_y_locs)
 
 
 # -------------------------------------------------------------------
