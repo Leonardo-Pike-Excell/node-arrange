@@ -1228,41 +1228,59 @@ def get_discrete_rows(columns):
                 continue
 
             row = [n for n in get_discrete_predecessors(node) if n.bl_idname != 'NodeReroute']
-            if len(row) > 2 or (len(row) == 2 and not row[-1].inputs):
+            valid = len(row) > 2 or (len(row) == 2 and not row[-1].inputs)
+            if valid and len({get_top(n) for n in row}) != 1:
+                row.reverse()
                 rows.append(row)
 
     return rows
 
 
-def align_row(row, line_y):
-    groups = {k: tuple(g) for k, g in groupby(sorted(row, key=get_top), get_top)}
+def disperse_row_box(sub_boxes, col_boxes):
+    bottom = min([b.bottom for b in sub_boxes])
+    row_box = Box(sub_boxes[0].left, bottom, sub_boxes[-1].right, sub_boxes[0].top)
 
-    if len(groups) == 1:
-        return
+    prev_movement = 0
+    while any(a.overlaps(b) for a in sub_boxes for b in col_boxes.values()):
+        raw_movement = rect_overlap_vector(0, {0: col_boxes}, col_boxes | {0: row_box})[0]
+        lines_y = get_merged_lines([b.line_y() for b in col_boxes.values()])
+        movement = get_better_movement(row_box, lines_y, raw_movement)
 
-    columns = Maps.frame_columns[row[0].parent]
+        if prev_movement and (prev_movement > 0) != (movement > 0):
+            movement = prev_movement
+        else:
+            prev_movement = movement
 
-    if all(len(g) == 1 for g in groups.values()):
-        target_y = get_top(min(row, key=get_bottom)) if line_y else fmean(groups)
-    else:
-        target_y = max(groups.items(), key=lambda kg: len(kg[1]))[0]
+        for box in row_box, *sub_boxes:
+            box.move(y=movement)
 
-    margin = MARGIN.y / 2
+
+def align_row(row, rows):
+    linked = get_input_nodes(row[0]) + get_output_nodes(row[-1])
+    ideal_y = fmean(map(get_top, linked))
+
+    sub_boxes = []
     for node in row:
-        col = next(c for c in columns if node in c)
-        lines_y = [#
-          (get_bottom(n) - margin, get_top(n) + margin)
-          for n in col if n != node and n.bl_idname != 'NodeReroute']
+        box = Box(abs_loc(node).x, get_bottom(node, ideal_y), get_right(node), ideal_y)
+        box.expand(y=MARGIN.y / 2)
+        sub_boxes.append(box)
 
-        line_y = (get_bottom(node, target_y) - margin, get_top(node, target_y) + margin)
-        if not any(lines_overlap(l, line_y) for l in lines_y):
-            move_to(node, y=corrected_y(node, target_y))
+    columns = []
+    unfixed = set(chain(*rows[rows.index(row):]))
+    for col in Maps.frame_columns[row[0].parent]:
+        if any(n in col for n in row) and (new_col := [n for n in col if n not in unfixed]):
+            columns.append(new_col)
+
+    disperse_row_box(sub_boxes, get_col_boxes(columns))
+    y = sub_boxes[0].top - MARGIN.y / 2
+    for node in row:
+        move_to(node, y=corrected_y(node, y))
 
 
 def align_discrete_rows(frame):
-    line_y = get_box(Maps.used_children[frame]).line_y() if frame else None
-    for row in get_discrete_rows(Maps.frame_columns[frame]):
-        align_row(row, line_y)
+    rows = get_discrete_rows(Maps.frame_columns[frame])
+    for row in rows:
+        align_row(row, rows)
 
 
 # -------------------------------------------------------------------
