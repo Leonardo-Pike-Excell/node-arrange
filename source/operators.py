@@ -50,6 +50,13 @@ def get_nested_children(frame):
             yield from get_nested_children(node)
 
 
+def is_parented(a, b):
+    if not isinstance(a, NodeFrame) or not isinstance(b, NodeFrame):
+        return False
+
+    return b in get_parents(a) or a in get_parents(b)
+
+
 # -------------------------------------------------------------------
 #   Flatten links
 # -------------------------------------------------------------------
@@ -1343,13 +1350,6 @@ def get_nested_boxes(frame_boxes):
         yield (nested_frame_boxes, nested_col_boxes)
 
         yield from get_nested_boxes(nested_frame_boxes)
-
-
-def is_parented(a, b):
-    if not isinstance(a, NodeFrame) or not isinstance(b, NodeFrame):
-        return False
-
-    return b in get_parents(a) or a in get_parents(b)
 
 
 def get_overlapping_x(real_boxes, boxes):
