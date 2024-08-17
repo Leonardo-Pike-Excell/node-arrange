@@ -1221,7 +1221,8 @@ def get_discrete_predecessors(node):
     if len(get_output_nodes(node)) > 1:
         return
 
-    yield node
+    if node.bl_idname != 'NodeReroute':
+        yield node
 
     from_nodes = get_input_nodes(node)
     linked_singly = len(from_nodes) == 1 and len(get_output_nodes(node)) == 1
@@ -1236,7 +1237,7 @@ def get_discrete_rows(columns):
             if node in chain(*rows):
                 continue
 
-            row = [n for n in get_discrete_predecessors(node) if n.bl_idname != 'NodeReroute']
+            row = list(get_discrete_predecessors(node))
             valid = len(row) > 2 or (len(row) == 2 and not row[-1].inputs)
             if valid and len({get_top(n) for n in row}) != 1:
                 row.reverse()
