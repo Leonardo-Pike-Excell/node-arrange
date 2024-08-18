@@ -1601,7 +1601,7 @@ def center_frames_y(frame_boxes, nearest):
     return rows
 
 
-def will_break_row(frame, row, boxes, line_x):
+def will_break_box_row(frame, row, boxes, line_x):
     row = [k for k in row if k == frame or not lines_overlap(line_x, boxes[k].line_x())]
     i = row.index(frame)
     leftwards = row[(i - MIN_ADJ_COLS):(i)]
@@ -1621,7 +1621,7 @@ def get_levelled_frames(row_items, boxes, movement):
         if will_overlap or abs(movement) > box.height / 2:
             continue
 
-        if movement == 0 or not will_break_row(frame, row, boxes, box.line_x()):
+        if movement == 0 or not will_break_box_row(frame, row, boxes, box.line_x()):
             levelled.add(frame)
 
     return levelled
