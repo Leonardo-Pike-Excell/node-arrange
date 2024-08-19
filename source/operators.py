@@ -1207,7 +1207,8 @@ def dispersed(frame_boxes, col_boxes):
                 movement = prev_movements[frame1]
 
             box1.move(y=movement)
-            prev_movements[frame1] = movement
+            if round(movement, 1) != 0:
+                prev_movements[frame1] = movement
 
     return {f: t - boxes[f].top for f, t in old_tops.items()}
 
