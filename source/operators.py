@@ -1179,7 +1179,7 @@ def dispersed(frame_boxes, col_boxes):
                 if frame1 in prev_movements and prev_movements[frame1] < 0:
                     nudge *= -1
 
-                frame_boxes[frame1].move(y=nudge)
+                box1.move(y=nudge)
                 if overlapping_frames:
                     frame_boxes[overlapping_frames[0]].move(y=-nudge)
 
