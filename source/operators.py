@@ -484,8 +484,9 @@ def get_arranged(columns):
 
         prev_x = x
 
-        y = -get_top(col[0], 0)
+        y = 0
         for node in col:
+            y = corrected_y(node, y)
             arranged[node] = Vector((x, y))
             y = get_bottom(node, y) - MARGIN.y
 
