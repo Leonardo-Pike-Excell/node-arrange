@@ -62,20 +62,20 @@ def is_parented(a, b):
 # -------------------------------------------------------------------
 
 
-def get_input_nodes(*nodes):
-    from_nodes = []
+def get_predecessors(*nodes):
+    predecessors = []
     for node in nodes:
-        from_nodes.extend(chain(*[Maps.links[i] for i in node.inputs]))
+        predecessors.extend(chain(*[Maps.links[i] for i in node.inputs]))
 
-    return from_nodes
+    return predecessors
 
 
-def get_output_nodes(*nodes):
-    to_nodes = []
+def get_successors(*nodes):
+    successors = []
     for node in nodes:
-        to_nodes.extend(chain(*[Maps.links[o] for o in node.outputs]))
+        successors.extend(chain(*[Maps.links[o] for o in node.outputs]))
 
-    return to_nodes
+    return successors
 
 
 # -------------------------------------------------------------------
@@ -244,13 +244,13 @@ class Box:
           or self.bottom + offset > other.top - offset)
         # yapf: enable
 
-    def leftwards(self, boxes):
+    def get_leftwards(self, boxes):
         try:
             return next(k for k, b in reversed(boxes.items()) if b.right <= self.left)
         except StopIteration:
             return None
 
-    def rightwards(self, boxes):
+    def get_rightwards(self, boxes):
         try:
             return next(k for k, b in boxes.items() if b.left >= self.right)
         except StopIteration:
@@ -435,7 +435,7 @@ def get_columns(output_nodes):
     columns = [output_nodes]
     idx = 0
     while columns[idx]:
-        columns.append(tuple(dict.fromkeys(get_input_nodes(*columns[idx]))))
+        columns.append(tuple(dict.fromkeys(get_predecessors(*columns[idx]))))
         idx += 1
 
     del columns[idx]
@@ -534,13 +534,13 @@ def get_input_lengths(nodes):
     lengths = {}
     for node in nodes:
         input_x = abs_loc(node).x
-        for from_node in get_input_nodes(node):
-            if from_node in nodes:
+        for pred in get_predecessors(node):
+            if pred in nodes:
                 continue
 
-            dist = input_x - get_right(from_node)
-            if from_node not in lengths or lengths[from_node] > dist:
-                lengths[from_node] = dist
+            dist = input_x - get_right(pred)
+            if pred not in lengths or lengths[pred] > dist:
+                lengths[pred] = dist
 
     return lengths
 
@@ -549,13 +549,13 @@ def get_output_lengths(nodes):
     lengths = {}
     for node in nodes:
         output_x = get_right(node)
-        for to_node in get_output_nodes(node):
-            if to_node in nodes:
+        for succ in get_successors(node):
+            if succ in nodes:
                 continue
 
-            dist = abs_loc(to_node).x - output_x
-            if to_node not in lengths or lengths[to_node] > dist:
-                lengths[to_node] = dist
+            dist = abs_loc(succ).x - output_x
+            if succ not in lengths or lengths[succ] > dist:
+                lengths[succ] = dist
 
     return lengths
 
@@ -565,7 +565,7 @@ def get_output_lengths(nodes):
 # -------------------------------------------------------------------
 
 
-def get_successors(nodes, seen=None):
+def get_descendants(nodes, seen=None):
     if seen is None:
         seen = set()
 
@@ -576,7 +576,7 @@ def get_successors(nodes, seen=None):
         yield node
         seen.add(node)
 
-        queue = set(get_output_nodes(node))
+        queue = set(get_successors(node))
         parent = node.parent
 
         if parent:
@@ -590,10 +590,10 @@ def get_successors(nodes, seen=None):
         else:
             queue.update(chain(*columns[:idx + 1]))
 
-        yield from get_successors(queue, seen)
+        yield from get_descendants(queue, seen)
 
 
-def get_predecessors(nodes, seen=None):
+def get_ancestors(nodes, seen=None):
     if seen is None:
         seen = set()
 
@@ -605,7 +605,7 @@ def get_predecessors(nodes, seen=None):
         seen.add(node)
 
         for input in node.inputs:
-            yield from get_predecessors(Maps.links[input], seen)
+            yield from get_ancestors(Maps.links[input], seen)
 
 
 def ideal_x_movement(nodes, line_x):
@@ -614,8 +614,8 @@ def ideal_x_movement(nodes, line_x):
     for node in nodes:
         input_x = abs_loc(node).x
         output_x = get_right(node)
-        to_x.extend([(abs_loc(n).x, output_x) for n in get_output_nodes(node) if n not in nodes])
-        from_x.extend([(get_right(n), input_x) for n in get_input_nodes(node) if n not in nodes])
+        to_x.extend([(abs_loc(n).x, output_x) for n in get_successors(node) if n not in nodes])
+        from_x.extend([(get_right(n), input_x) for n in get_predecessors(node) if n not in nodes])
 
     dist_to_x = lambda io: io[0] - io[1]
     dist_from_x = lambda oi: oi[1] - oi[0]
@@ -662,37 +662,37 @@ def resolved_with_min_movement(children):
     # children's frame rightwards, and see if it's resolved.
 
     frame = children[0].parent
-    from_node, from_dist = min(get_input_lengths(children).items(), key=itemgetter(1))
-    to_node, to_dist = min(get_output_lengths(children).items(), key=itemgetter(1))
+    pred, pred_dist = min(get_input_lengths(children).items(), key=itemgetter(1))
+    succ, succ_dist = min(get_output_lengths(children).items(), key=itemgetter(1))
 
-    if frame in chain(get_parents(to_node), get_parents(from_node)):
+    if frame in chain(get_parents(succ), get_parents(pred)):
         return False
 
-    if from_dist < 0:
-        from_frame = from_node.parent
-        from_nodes = Maps.used_children[from_frame] if from_frame else [from_node]
-        from_movement = from_dist - MARGIN.x * 2
+    if pred_dist < 0:
+        pred_frame = pred.parent
+        predecessors = Maps.used_children[pred_frame] if pred_frame else [pred]
+        pred_movement = pred_dist - MARGIN.x * 2
 
-        if link_stretch(from_nodes, from_movement):
+        if link_stretch(predecessors, pred_movement):
             return False
 
-    if to_dist < 0:
-        to_frame = to_node.parent
-        to_movement = abs(to_dist) + MARGIN.x * 2
-        if to_frame:
-            if link_stretch(Maps.used_children[to_frame], to_movement):
+    if succ_dist < 0:
+        succ_frame = succ.parent
+        succ_movement = abs(succ_dist) + MARGIN.x * 2
+        if succ_frame:
+            if link_stretch(Maps.used_children[succ_frame], succ_movement):
                 return False
 
-            move(to_frame, x=to_movement)
+            move(succ_frame, x=succ_movement)
         else:
-            if link_stretch([to_node], to_movement):
+            if link_stretch([succ], succ_movement):
                 return False
 
-            move(to_node, x=to_movement)
+            move(succ, x=succ_movement)
 
-    if from_dist < 0:
-        node = to_frame if from_frame else from_node
-        move(node, x=from_movement)
+    if pred_dist < 0:
+        node = succ_frame if pred_frame else pred
+        move(node, x=pred_movement)
 
     movement = ideal_frame_x_movement(frame)
 
@@ -709,26 +709,26 @@ def make_space_for_stretched(frame):
 
     children = Maps.used_children[frame]
 
-    to_move = set(get_successors(get_output_nodes(*children)))
-    to_move -= set(get_predecessors(get_input_nodes(*children))) | set(children)
+    to_move = set(get_descendants(get_successors(*children)))
+    to_move -= set(get_ancestors(get_predecessors(*children))) | set(children)
 
-    Maps.frame_successors[frame] = to_move
+    Maps.frame_descendants[frame] = to_move
 
     move(frame, x=ideal_frame_x_movement(frame))
 
-    from_stretch = []
-    to_stretch = []
+    pred_stretch = []
+    succ_stretch = []
     for node in children:
-        from_stretch.extend([d for d in get_input_lengths([node]).values() if d < 0])
-        to_stretch.extend([d for d in get_output_lengths([node]).values() if d < 0])
+        pred_stretch.extend([d for d in get_input_lengths([node]).values() if d < 0])
+        succ_stretch.extend([d for d in get_output_lengths([node]).values() if d < 0])
 
     movement = 0
 
-    if from_stretch:
-        movement += abs(min(from_stretch)) + MARGIN.x * 2
+    if pred_stretch:
+        movement += abs(min(pred_stretch)) + MARGIN.x * 2
 
-    if to_stretch:
-        movement += abs(min(to_stretch)) + MARGIN.x * 2
+    if succ_stretch:
+        movement += abs(min(succ_stretch)) + MARGIN.x * 2
 
     if movement != 0 and not resolved_with_min_movement(children):
         move_nodes(to_move, x=movement)
@@ -836,7 +836,7 @@ def regenerate_columns(frame):
 
     for col in new_columns:
         disperse_nodes_y(col)
-        col.sort(key=lambda n: abs_loc(n).y)
+        col.sort(key=get_top, reverse=True)
 
     new_columns.reverse()
     Maps.frame_columns[frame] = new_columns
@@ -847,11 +847,11 @@ def regenerate_columns(frame):
 # -------------------------------------------------------------------
 
 
-def get_successors_simple(nodes):
+def get_descendants_simple(nodes):
     for node in nodes:
         yield node
         for output in node.outputs:
-            yield from get_successors_simple(Maps.links[output])
+            yield from get_descendants_simple(Maps.links[output])
 
 
 def arrange_principled():
@@ -862,7 +862,7 @@ def arrange_principled():
         return
 
     all_image_nodes = [
-      n for n in get_predecessors(target_nodes) if n.bl_idname == 'ShaderNodeTexImage']
+      n for n in get_ancestors(target_nodes) if n.bl_idname == 'ShaderNodeTexImage']
 
     if not all_image_nodes:
         return
@@ -873,10 +873,10 @@ def arrange_principled():
 
     image_nodes = max(groups.values(), key=len)
     leftmost = min(image_nodes, key=lambda n: abs_loc(n).x)
-    leftmost_row = tuple(get_successors_simple([leftmost]))
+    leftmost_row = tuple(get_descendants_simple([leftmost]))
 
     for image_node in image_nodes:
-        row = tuple(get_successors_simple([image_node]))
+        row = tuple(get_descendants_simple([image_node]))
 
         for node1, node2 in zip(leftmost_row, row):
             movement = abs_loc(node1).x - abs_loc(node2).x
@@ -960,7 +960,7 @@ def move_frames_to_linked_y():
             move(node, y=movement)
 
 
-def get_ideal_y(node, subrows, line_y):
+def get_ideal_y(node, divided_rows, line_y):
     y = abs_loc(node).y
     parent = node.parent
 
@@ -970,7 +970,7 @@ def get_ideal_y(node, subrows, line_y):
     if not y_locs:
         return y
 
-    rows = [r for r in subrows if node in r]
+    rows = [r for r in divided_rows if node in r]
     if rows and node not in {rows[0][0], rows[0][-1]}:
         return y
 
@@ -1004,7 +1004,7 @@ def get_overlapping_lines(lines):
     return overlapping
 
 
-def limited_disperse_nodes_y(ideal_y_locs):
+def partial_disperse_nodes_y(ideal_y_locs):
     margin = MARGIN.y / 2
 
     lines = {}
@@ -1024,7 +1024,7 @@ def move_to_linked_y(columns):
     nodes = tuple(chain(*columns))
     reroutes = {n for n in nodes if n.bl_idname == 'NodeReroute'}
 
-    subrows = []
+    divided_rows = []
     for key, row in groupby(sorted(nodes, key=get_top), get_top):
         row = [n for n in row if n not in reroutes]
         row_len = len(row)
@@ -1035,20 +1035,20 @@ def move_to_linked_y(columns):
         curr_idx = 0
         for i, j in pairwise(range(row_len)):
             if abs_loc(row[j]).x - get_right(row[i]) > MARGIN.x:
-                subrows.append(row[curr_idx:i + 1])
+                divided_rows.append(row[curr_idx:i + 1])
                 curr_idx = j
 
-        subrows.append(row[curr_idx:j + 1])
+        divided_rows.append(row[curr_idx:j + 1])
 
     line_y = get_box(nodes).line_y()
 
     for col in columns:
-        ideal_y_locs = {n: get_ideal_y(n, subrows, line_y) for n in col if n not in reroutes}
-        limited_disperse_nodes_y(ideal_y_locs)
+        ideal_y_locs = {n: get_ideal_y(n, divided_rows, line_y) for n in col if n not in reroutes}
+        partial_disperse_nodes_y(ideal_y_locs)
 
     for col in columns:
-        ideal_y_locs = {n: get_ideal_y(n, subrows, line_y) for n in col if n in reroutes}
-        limited_disperse_nodes_y(ideal_y_locs)
+        ideal_y_locs = {n: get_ideal_y(n, divided_rows, line_y) for n in col if n in reroutes}
+        partial_disperse_nodes_y(ideal_y_locs)
 
 
 # -------------------------------------------------------------------
@@ -1219,80 +1219,85 @@ def dispersed(frame_boxes, col_boxes):
 # -------------------------------------------------------------------
 
 
-def get_discrete_predecessors(node):
-    if len(get_output_nodes(node)) > 1:
+def get_singly_linked_ancestors(node):
+    if len(get_successors(node)) > 1:
         return
 
     if node.bl_idname != 'NodeReroute':
         yield node
 
-    from_nodes = get_input_nodes(node)
-    linked_singly = len(from_nodes) == 1 and len(get_output_nodes(node)) == 1
-    if linked_singly and from_nodes[0].parent == node.parent:
-        yield from get_discrete_predecessors(from_nodes[0])
+    predecessors = get_predecessors(node)
+    linked_singly = len(predecessors) == 1 and len(get_successors(node)) == 1
+    if linked_singly and predecessors[0].parent == node.parent:
+        yield from get_singly_linked_ancestors(predecessors[0])
 
 
-def get_discrete_rows(columns):
-    rows = []
+def get_linear_chains(columns):
+    linear_chains = []
     for col in columns[:-1]:
         for node in col:
-            if node in chain(*rows):
+            if node in chain(*linear_chains):
                 continue
 
-            row = list(get_discrete_predecessors(node))
-            valid = len(row) > 2 or (len(row) == 2 and not row[-1].inputs)
-            if valid and len({get_top(n) for n in row}) != 1:
-                row.reverse()
-                rows.append(row)
+            lin_chain = list(get_singly_linked_ancestors(node))
+            valid = len(lin_chain) > 2 or (len(lin_chain) == 2 and not lin_chain[-1].inputs)
+            if valid and len({get_top(n) for n in lin_chain}) != 1:
+                lin_chain.reverse()
+                linear_chains.append(lin_chain)
 
-    return rows
+    return linear_chains
 
 
-def disperse_row_box(sub_boxes, col_boxes):
+def disperse_lin_chain_box(sub_boxes, col_boxes):
     bottom = min([b.bottom for b in sub_boxes])
-    row_box = Box(sub_boxes[0].left, bottom, sub_boxes[-1].right, sub_boxes[0].top)
+    lin_chain_box = Box(sub_boxes[0].left, bottom, sub_boxes[-1].right, sub_boxes[0].top)
 
     prev_movement = 0
     while any(a.overlaps(b) for a in sub_boxes for b in col_boxes.values()):
-        raw_movement = rect_overlap_vector(0, {0: col_boxes}, col_boxes | {0: row_box})[0]
+        raw_movement = rect_overlap_vector(0, {0: col_boxes}, col_boxes | {0: lin_chain_box})[0]
         lines_y = get_merged_lines([b.line_y() for b in col_boxes.values()])
-        movement = get_better_movement(row_box, lines_y, raw_movement)
+        movement = get_better_movement(lin_chain_box, lines_y, raw_movement)
 
         if prev_movement and (prev_movement > 0) != (movement > 0):
             movement = prev_movement
         else:
             prev_movement = movement
 
-        for box in row_box, *sub_boxes:
+        for box in lin_chain_box, *sub_boxes:
             box.move(y=movement)
 
 
-def align_row(row, rows):
-    linked = get_input_nodes(row[0]) + get_output_nodes(row[-1])
+def align_lin_chain(lin_chain, linear_chains):
+    linked = get_predecessors(lin_chain[0]) + get_successors(lin_chain[-1])
     ideal_y = fmean(map(get_top, linked))
 
     sub_boxes = []
-    for node in row:
+    for node in lin_chain:
         box = Box(abs_loc(node).x, get_bottom(node, ideal_y), get_right(node), ideal_y)
         box.expand(y=MARGIN.y / 2)
         sub_boxes.append(box)
 
     columns = []
-    unfixed = set(chain(*rows[rows.index(row):]))
-    for col in Maps.frame_columns[row[0].parent]:
-        if any(n in col for n in row) and (new_col := [n for n in col if n not in unfixed]):
+    unfixed = set(chain(*linear_chains[linear_chains.index(lin_chain):]))
+    for col in Maps.frame_columns[lin_chain[0].parent]:
+        if any(n in col for n in lin_chain) and (new_col := [n for n in col if n not in unfixed]):
             columns.append(new_col)
 
-    disperse_row_box(sub_boxes, get_col_boxes(columns))
+    disperse_lin_chain_box(sub_boxes, get_col_boxes(columns))
     y = sub_boxes[0].top - MARGIN.y / 2
-    for node in row:
+    for node in lin_chain:
         move_to(node, y=corrected_y(node, y))
 
 
-def align_discrete_rows(frame):
-    rows = get_discrete_rows(Maps.frame_columns[frame])
-    for row in rows:
-        align_row(row, rows)
+def align_linear_chains(frame):
+    columns = Maps.frame_columns[frame]
+
+    linear_chains = get_linear_chains(columns)
+    for lin_chain in linear_chains:
+        align_lin_chain(lin_chain, linear_chains)
+
+    for col in columns:
+        col.sort(key=get_top, reverse=True)
 
 
 # -------------------------------------------------------------------
@@ -1383,7 +1388,7 @@ def compact_frames_x(frame_boxes, col_boxes):
     children = Maps.used_children
 
     for frame1, box1 in frame_boxes.items():
-        nodes_right = Maps.frame_successors[frame1].copy()
+        nodes_right = Maps.frame_descendants[frame1].copy()
         add_children(nodes_right)
 
         children1 = get_nested_children(frame1)
@@ -1496,14 +1501,14 @@ def unite(row, boxes):
         return
 
     for key in row:
-        rightwards = boxes[key].rightwards(boxes)
+        rightwards = boxes[key].get_rightwards(boxes)
 
         if rightwards is None or rightwards in row or isinstance(rightwards, tuple):
             continue
 
         box = boxes[rightwards]
 
-        if box.rightwards(boxes) not in row:
+        if box.get_rightwards(boxes) not in row:
             continue
 
         if any(box.overlaps(b) for b in boxes.values() if box != b):
@@ -1640,10 +1645,10 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes):
 
     nearest = defaultdict(set)
     for frame1, box1 in frame_boxes.items():
-        if rightwards := box1.rightwards(boxes):
+        if rightwards := box1.get_rightwards(boxes):
             nearest[frame1].add(rightwards)
 
-        if leftwards := box1.leftwards(boxes):
+        if leftwards := box1.get_leftwards(boxes):
             nearest[frame1].add(leftwards)
 
     old_values = {f: (f.location.y, replace(b)) for f, b in frame_boxes.items()}
@@ -1760,7 +1765,7 @@ def contract_x(frame_boxes, col_boxes):
 # -------------------------------------------------------------------
 
 
-def reroute_predecessors(node, reroutes, seen):
+def get_reroute_ancestors(node, reroutes, seen):
     if node not in reroutes:
         return
 
@@ -1770,7 +1775,7 @@ def reroute_predecessors(node, reroutes, seen):
         return
 
     linked = Maps.links[node.inputs[0]][0]
-    yield from reroute_predecessors(linked, reroutes, seen)
+    yield from get_reroute_ancestors(linked, reroutes, seen)
 
 
 def get_reroute_segments(children):
@@ -1782,8 +1787,8 @@ def get_reroute_segments(children):
     segments = []
     for reroute in reroutes:
         seen = set(chain(*segments))
-        if pred := tuple(reroute_predecessors(reroute, reroutes, seen)):
-            segments.append(pred)
+        if ancestors := tuple(get_reroute_ancestors(reroute, reroutes, seen)):
+            segments.append(ancestors)
 
     segments.sort(key=len)
     for s1 in reversed(segments):
@@ -1802,10 +1807,10 @@ def arrange_framed_reroutes(segment, children):
 
     end = segment[-1]
     linked = sockets[end.outputs[0]]
-    to_socket = linked[0]
-    if to_socket.node in children:
-        move_to(end, y=get_input_y(to_socket))
-        x = abs_loc(to_socket.node).x - MARGIN.x
+    input = linked[0]
+    if input.node in children:
+        move_to(end, y=get_input_y(input))
+        x = abs_loc(input.node).x - MARGIN.x
         if link_stretch([end]) >= link_stretch([end], x - abs_loc(end).x):
             move_to(end, x=x)
     else:
@@ -1816,10 +1821,10 @@ def arrange_framed_reroutes(segment, children):
     if not segment_rest:
         return
 
-    from_socket = sockets[segment[0].inputs[0]][0]
-    if from_socket.node in children:
-        output_y = get_output_y(from_socket)
-        movement = abs_loc(segment_rest[0]).x - (get_right(from_socket.node) + MARGIN.x)
+    output = sockets[segment[0].inputs[0]][0]
+    if output.node in children:
+        output_y = get_output_y(output)
+        movement = abs_loc(segment_rest[0]).x - (get_right(output.node) + MARGIN.x)
         for reroute in segment_rest:
             move(reroute, x=-movement)
     elif len(linked) == 1:
@@ -1928,10 +1933,10 @@ def arrange_unframed_reroutes(segment):
         return
 
     end = segment[-1]
-    to_socket = Maps.sockets[end.outputs[0]][0]
-    move_to(end, y=get_input_y(to_socket))
+    input = Maps.sockets[end.outputs[0]][0]
+    move_to(end, y=get_input_y(input))
 
-    x = abs_loc(to_socket.node).x - MARGIN.x
+    x = abs_loc(input.node).x - MARGIN.x
     if link_stretch([end]) >= link_stretch([end], x - end.location.x):
         move_to(end, x=x)
 
@@ -2020,7 +2025,7 @@ class Maps:
 
     frame_columns = {}
     used_children = {}
-    frame_successors = {}
+    frame_descendants = {}
 
 
 # -------------------------------------------------------------------
@@ -2106,7 +2111,7 @@ class NA_OT_ArrangeSelected(Operator):
             move_to_linked_y(columns)
 
         for frame in frame_columns:
-            align_discrete_rows(frame)
+            align_linear_chains(frame)
 
         # -------------------------------------------------------------------
 
