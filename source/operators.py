@@ -1301,6 +1301,48 @@ def align_linear_chains(frame):
 
 
 # -------------------------------------------------------------------
+#   Align highest nodes
+# -------------------------------------------------------------------
+
+
+def get_alignable_ancestors(trail):
+    predecessors = [n for n in get_predecessors(trail[-1]) if n.parent == trail[-1].parent]
+    try:
+        pred = max(predecessors, key=get_top)
+    except ValueError:
+        return trail
+
+    col = next(c for c in Maps.frame_columns[pred.parent] if pred in c)
+
+    if col[0] != pred or get_top(pred) < get_top(trail[-1]):
+        return trail
+
+    max_right = max(map(get_right, col))
+    if max_right - get_right(pred) >= (max_right - abs_loc(pred).x) / 3:
+        return trail
+
+    trail.append(pred)
+    return get_alignable_ancestors(trail)
+
+
+def align_highest_nodes(columns):
+    seen = 0
+    for i, col in enumerate(columns):
+        if i < seen:
+            continue
+
+        trail = [n for n in get_alignable_ancestors([col[0]]) if n.bl_idname != 'NodeReroute']
+        seen = i + len(trail)
+
+        if len({get_top(n) for n in trail}) <= 1:
+            continue
+
+        target_y = get_top(trail[-1])
+        for node in trail[:-1]:
+            move_to(node, y=corrected_y(node, target_y))
+
+
+# -------------------------------------------------------------------
 #   Compact frames X
 # -------------------------------------------------------------------
 
@@ -2112,6 +2154,8 @@ class NA_OT_ArrangeSelected(Operator):
 
         for frame in frame_columns:
             align_linear_chains(frame)
+
+        align_highest_nodes(frame_columns.get(None, []))
 
         # -------------------------------------------------------------------
 
