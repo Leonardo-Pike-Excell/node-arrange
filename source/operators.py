@@ -991,18 +991,19 @@ def get_overlapping_lines(lines):
 
     overlapping = {}
     for pair in combinations(lines, 2):
-        # Sort pairs so that if its nodes overlap, the node that moved the
-        # most is added
         most_moved, other = sorted(pair, key=keys.index)
 
         if lines_overlap(lines[most_moved], lines[other]):
-            overlapping[most_moved] = other
-
-            # If just the other node is moved, and there's still overlap,
-            # add them both
             real_top = abs_loc(most_moved).y + margin
+
+            if lines[most_moved][1] != real_top:
+                overlapping[most_moved] = other
+
             real_bottom = get_bottom(most_moved) - margin
-            if lines_overlap((real_top, real_bottom), lines[other]):
+            if not lines_overlap((real_bottom, real_top), lines[other]):
+                continue
+
+            if lines[other][1] != abs_loc(other).y + margin:
                 overlapping[other] = most_moved
 
     return overlapping
@@ -1963,7 +1964,7 @@ def arrange_all_framed_reroutes(frame_boxes):
                 loc = abs_loc(reroute)
                 if loc.y > top or loc.y < bottom:
                     move_to(reroute, y=old_loc.y)
-                elif any([round(a, 1) != 0 for a in loc - old_loc]):
+                elif any(a > 2 for a in loc - old_loc):
                     has_moved = True
 
         if not has_moved:
