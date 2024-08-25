@@ -695,7 +695,7 @@ def resolved_with_min_movement(children):
             move(succ, x=succ_movement)
 
     if pred_dist < 0:
-        node = succ_frame if pred_frame else pred
+        node = succ_frame if pred_frame and succ_frame else pred
         move(node, x=pred_movement)
 
     movement = ideal_frame_x_movement(frame)
