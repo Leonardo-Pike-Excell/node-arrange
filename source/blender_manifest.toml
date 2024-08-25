@@ -8,4 +8,4 @@ type = "add-on"
 website = "https://github.com/Leonardo-Pike-Excell/node-arrange"
 tags = ["Node"]
 blender_version_min = "4.2.0"
-license = ["SPDX:GPL-2.0-or-later"]
+license = ["SPDX:GPL-3.0-or-later"]
