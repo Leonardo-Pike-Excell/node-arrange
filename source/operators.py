@@ -91,22 +91,26 @@ def abs_loc(node):
     return loc
 
 
+def dimensions(node):
+    return node.dimensions / SCALE_FAC
+
+
 def get_right(node):
-    return abs_loc(node).x + node.dimensions.x / 2
+    return abs_loc(node).x + dimensions(node).x
 
 
 def get_top(node, y_loc=None):
     if y_loc is None:
         y_loc = abs_loc(node).y
 
-    return (y_loc + node.dimensions.y / 4) - HIDE_OFFSET if node.hide else y_loc
+    return (y_loc + dimensions(node).y / 2) - HIDE_OFFSET if node.hide else y_loc
 
 
 def get_bottom(node, y_loc=None):
     if y_loc is None:
         y_loc = abs_loc(node).y
 
-    dim_y = node.dimensions.y / 2
+    dim_y = dimensions(node).y
     bottom = y_loc - dim_y
     return bottom + dim_y / 2 - HIDE_OFFSET if node.hide else bottom
 
@@ -118,7 +122,7 @@ def get_hidden_socket_y(socket):
     top = get_top(node, y)
     bottom = get_bottom(node, y)
 
-    cap_width = (node.dimensions.x / 2 - HIDDEN_NODE_FLAT_WIDTH) / 2
+    cap_width = (dimensions(node).x - HIDDEN_NODE_FLAT_WIDTH) / 2
     inner = x + cap_width
     outer = x - cap_width / 3
 
@@ -145,7 +149,7 @@ def get_input_y(input, accurate=True):
     inputs = [i for i in node.inputs if not i.is_unavailable]
     if node.bl_idname != 'ShaderNodeBsdfPrincipled':
         # Start from the bottom socket to avoid any node properties
-        y -= node.dimensions.y / 2 - BOTTOM_OFFSET
+        y -= dimensions(node).y - BOTTOM_OFFSET
         inputs.reverse()
         idx = inputs.index(input)
 
@@ -262,7 +266,7 @@ def get_box(nodes):
     y_vals = []
     for node in nodes:
         x, y = abs_loc(node)
-        x_vals.extend((x, x + node.dimensions.x / 2))
+        x_vals.extend((x, x + dimensions(node).x))
         y_vals.extend((get_top(node, y), get_bottom(node, y)))
 
     return Box(min(x_vals), min(y_vals), max(x_vals), max(y_vals))
@@ -383,7 +387,7 @@ def move(node, *, x=0, y=0):
     for n in Maps.selected:
         n.select = n == node
 
-    bpy.ops.transform.translate(value=[v * 2 for v in (x, y, 0)])
+    bpy.ops.transform.translate(value=[v * SCALE_FAC for v in (x, y, 0)])
 
     for n in Maps.selected:
         n.select = True
@@ -477,7 +481,7 @@ def get_arranged(columns):
     arranged = {}
     for i, col in enumerate(columns):
         if i != 0:
-            max_width = max([n.dimensions.x / 2 for n in col])
+            max_width = max([dimensions(n).x for n in col])
             x = prev_x - (max_width + MARGIN.x)
         else:
             x = 0
@@ -517,7 +521,7 @@ def link_stretch(nodes, movement=0):
     stretch = 0
     for node in nodes:
         x = abs_loc(node).x + movement
-        right = x + node.dimensions.x / 2
+        right = x + dimensions(node).x
         for socket in chain(node.inputs, node.outputs):
             for linked in Maps.links[socket]:
                 if linked in nodes:
@@ -764,8 +768,8 @@ def get_new_columns(frame):
     col = [sorted_nodes[0]]
     columns = []
     for node in sorted_nodes[1:]:
-        max_right = max([abs_loc(n).x + n.dimensions.x / 4 for n in col])
-        if abs_loc(node).x <= max_right:
+        max_right = max([abs_loc(n).x + dimensions(n).x for n in col])
+        if abs_loc(node).x < max_right:
             col.append(node)
         else:
             columns.append(col)
@@ -778,7 +782,7 @@ def get_new_columns(frame):
 
 def align_columns(columns):
     for col in columns:
-        col.sort(key=lambda n: n.dimensions.x, reverse=True)
+        col.sort(key=lambda n: dimensions(n).x, reverse=True)
 
     for i, col in enumerate(columns):
         x = abs_loc(col[0]).x
@@ -1922,7 +1926,7 @@ def disperse_reroutes_x(segments, boxes=None):
     if boxes is None:
         boxes = []
 
-    margin = MARGIN / 2 - reroute.dimensions / 4
+    margin = MARGIN / 2 - dimensions(reroute) / 2
     for node in Maps.used_children[reroute.parent]:
         if node.bl_idname != 'NodeReroute':
             box = get_box([node])
@@ -2123,6 +2127,9 @@ class NA_OT_ArrangeSelected(Operator):
 
         global MARGIN
         MARGIN = Vector(settings.margin).freeze()
+
+        global SCALE_FAC
+        SCALE_FAC = context.preferences.system.ui_scale
 
         for node in nodes:
             Maps.all_children[node.parent].append(node)
