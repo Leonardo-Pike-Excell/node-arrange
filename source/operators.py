@@ -2085,6 +2085,14 @@ class NA_OT_ArrangeSelected(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        global MARGIN
+        MARGIN = Vector(context.scene.na_settings.margin).freeze()
+
+        global SCALE_FAC
+        SCALE_FAC = context.preferences.system.ui_scale
+
+        # -------------------------------------------------------------------
+
         ntree = context.space_data.edit_tree
         nodes = ntree.nodes
         selected = [n for n in nodes if n.select]
@@ -2123,14 +2131,6 @@ class NA_OT_ArrangeSelected(Operator):
                 del Maps.sockets[socket][i]
 
         # -------------------------------------------------------------------
-
-        settings = context.scene.na_settings
-
-        global MARGIN
-        MARGIN = Vector(settings.margin).freeze()
-
-        global SCALE_FAC
-        SCALE_FAC = context.preferences.system.ui_scale
 
         for node in nodes:
             Maps.all_children[node.parent].append(node)
