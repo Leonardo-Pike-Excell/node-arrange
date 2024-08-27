@@ -2163,7 +2163,7 @@ class NA_OT_ArrangeSelected(Operator):
         for frame in frame_columns:
             align_linear_chains(frame)
 
-        # align_highest_nodes(frame_columns.get(None, []))
+        align_highest_nodes(frame_columns.get(None, []))
 
         # -------------------------------------------------------------------
 
