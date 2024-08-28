@@ -865,22 +865,22 @@ def arrange_principled():
     else:
         return
 
-    all_image_nodes = [
+    all_img_nodes = [
       n for n in get_ancestors(target_nodes) if n.bl_idname == 'ShaderNodeTexImage']
 
-    if not all_image_nodes:
+    if not all_img_nodes:
         return
 
     groups = defaultdict(list)
-    for node in all_image_nodes:
+    for node in all_img_nodes:
         groups[node.parent].append(node)
 
-    image_nodes = max(groups.values(), key=len)
-    leftmost = min(image_nodes, key=lambda n: abs_loc(n).x)
+    img_nodes = max(groups.values(), key=len)
+    leftmost = min(img_nodes, key=lambda n: abs_loc(n).x)
     leftmost_row = tuple(get_descendants_simple([leftmost]))
 
-    for image_node in image_nodes:
-        row = tuple(get_descendants_simple([image_node]))
+    for img_node in img_nodes:
+        row = tuple(get_descendants_simple([img_node]))
 
         for node1, node2 in zip(leftmost_row, row):
             movement = abs_loc(node1).x - abs_loc(node2).x
@@ -900,7 +900,7 @@ def arrange_principled():
             move_nodes(to_move + [node2], x=get_right(ranked[1]) - right)
 
         if any(n.bl_idname == 'ShaderNodeDisplacement' for n in row):
-            move(image_node, y=-1)
+            move(img_node, y=-1)
 
     if frame := leftmost.parent:
         regenerate_columns(frame)
