@@ -865,8 +865,7 @@ def arrange_principled():
     else:
         return
 
-    all_img_nodes = [
-      n for n in get_ancestors(target_nodes) if n.bl_idname == 'ShaderNodeTexImage']
+    all_img_nodes = [n for n in get_ancestors(target_nodes) if n.bl_idname == 'ShaderNodeTexImage']
 
     if not all_img_nodes:
         return
@@ -1491,48 +1490,60 @@ def space_to_move(frame):
     return min(lengths, default=0)
 
 
+def should_center_x(frame, target_center, frame_boxes):
+    box = frame_boxes[frame]
+    movement = target_center - box.center.x
+
+    if round(movement, 1) == 0:
+        return False
+
+    children = Maps.used_children[frame]
+    if link_stretch(children) < link_stretch(children, movement):
+        return False
+
+    moved_box = replace(box)
+    moved_box.move(x=movement)
+    for other_box in frame_boxes.values():
+        if box is other_box or int(other_box.center.x) == int(target_center):
+            continue
+
+        if box.overlaps(other_box) != moved_box.overlaps(other_box):
+            return False
+
+    return True
+
+
 def center_frames_x(frame_boxes):
     others = {f1: [f2 for f2 in frame_boxes if f1 != f2] for f1 in frame_boxes}
-
-    def dist_to_x(frame):
-        return abs(center2 - frame_boxes[frame].center.x)
+    history = defaultdict(set)
 
     while True:
         has_moved = False
         for frame1 in sorted(frame_boxes, key=space_to_move):
             box1 = frame_boxes[frame1]
             center1 = box1.center.x
-
             for frame2 in others[frame1]:
                 box2 = frame_boxes[frame2]
                 center2 = box2.center.x
 
-                if min(others[frame2], key=dist_to_x) != frame1:
+                center_diff = lambda f: abs(center2 - frame_boxes[f].center.x)
+                not_closest = min(others[frame2], key=center_diff) != frame1
+                if not_closest and center_diff(frame1) > fmean((box1.width, box2.width)) / 3:
+                    continue
+
+                if not should_center_x(frame2, center1, frame_boxes):
+                    continue
+
+                item = (frame1, int(center1))
+                if item in history[frame2]:
                     continue
 
                 movement = center1 - center2
+                move(frame2, x=movement)
+                box2.move(x=movement)
 
-                no_movement = round(movement, 1) == 0
-                children = Maps.used_children[frame2]
-                if no_movement or link_stretch(children) < link_stretch(children, movement):
-                    continue
-
-                centered = {f for f, b in frame_boxes.items() if int(b.center.x) == int(center1)}
-
-                moved_box2 = replace(box2)
-                moved_box2.move(x=movement)
-
-                for frame3 in others[frame2]:
-                    if frame3 in centered:
-                        continue
-
-                    box3 = frame_boxes[frame3]
-                    if box2.overlaps(box3) != moved_box2.overlaps(box3):
-                        break
-                else:
-                    move(frame2, x=movement)
-                    frame_boxes[frame2] = moved_box2
-                    has_moved = True
+                has_moved = True
+                history[frame2].add(item)
 
         if not has_moved:
             break
