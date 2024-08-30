@@ -21,6 +21,7 @@ BOTTOM_OFFSET = 14.85
 TOP_OFFSET = 35
 VISIBLE_PBSDF_SOCKETS = 5
 SOCKET_SPACING_MULTIPLIER = 22
+OVERLAP_TOL = 0.01
 FRAME_PADDING = 29.8
 COMPACT_HEIGHT = 450
 EPS = 65
@@ -239,13 +240,13 @@ class Box:
         self.bottom += y
         self.top += y
 
-    def overlaps(self, other, offset=0.01):
+    def overlaps(self, other, tol=OVERLAP_TOL):
         # yapf: disable
         return not (
-          self.right - offset < other.left + offset
-          or self.left + offset > other.right - offset
-          or self.top - offset < other.bottom + offset
-          or self.bottom + offset > other.top - offset)
+          self.right - tol < other.left + tol
+          or self.left + tol > other.right - tol
+          or self.top - tol < other.bottom + tol
+          or self.bottom + tol > other.top - tol)
         # yapf: enable
 
     def get_leftwards(self, boxes):
@@ -348,14 +349,14 @@ def get_box_rows(boxes):
     return rows
 
 
-def lines_overlap(line1, line2, offset=0.01):
+def lines_overlap(line1, line2, tol=OVERLAP_TOL):
     b1, a1 = line1
     b2, a2 = line2
 
-    a1 -= offset
-    b1 += offset
-    a2 -= offset
-    b2 += offset
+    a1 -= tol
+    b1 += tol
+    a2 -= tol
+    b2 += tol
 
     # yapf: disable
     return (
