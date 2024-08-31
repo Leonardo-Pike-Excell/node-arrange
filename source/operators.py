@@ -1723,11 +1723,7 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes):
 
     for row in frame_rows:
         row_items = {f: ([dispersed_boxes[k] for k in overlapping_x[f]], row_map[f]) for f in row}
-        results = {}
-        for frame in row:
-            movement = movements[frame]
-            results[movement] = get_levelled_frames(row_items, boxes, movement)
-
+        results = {movements[f]: get_levelled_frames(row_items, boxes, movements[f]) for f in row}
         counts = {m: sum(len(nearest[f] & l) + 1 for f in l) for m, l in results.items()}
         largest = max(counts.values())
 
