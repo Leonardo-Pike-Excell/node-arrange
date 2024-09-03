@@ -2154,9 +2154,9 @@ class NA_OT_ArrangeSelected(Operator):
         Maps.universal_columns.extend(universal_columns)
         Maps.selected.extend(selected)
 
-        active_nodes = tuple(chain(*universal_columns))
+        used_nodes = tuple(chain(*universal_columns))
         for socket, linked in Maps.links.items():
-            indices = [i for i, n in enumerate(linked) if n not in active_nodes]
+            indices = [i for i, n in enumerate(linked) if n not in used_nodes]
             for i in reversed(indices):
                 del linked[i]
                 del Maps.sockets[socket][i]
@@ -2166,7 +2166,7 @@ class NA_OT_ArrangeSelected(Operator):
         for node in nodes:
             Maps.all_children[node.parent].append(node)
 
-        locs = [(n, abs_loc(n)) for n in active_nodes]
+        locs = [(n, abs_loc(n)) for n in used_nodes]
         origin_node, old_origin_loc = max(locs, key=lambda nl: sum(nl[1]))
 
         # -----------------------------------------------------------------
