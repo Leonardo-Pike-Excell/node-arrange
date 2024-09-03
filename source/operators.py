@@ -1701,11 +1701,11 @@ def will_break_box_row(frame, row, boxes, line_x) -> bool:
 
 def get_levelled_frames(row_items, boxes, movement) -> set[NodeFrame]:
     levelled = set()
-    for frame, (overlapping_x, row) in row_items.items():
+    for frame, (overlappers_x, row) in row_items.items():
         box = replace(boxes[frame])
         box.move(y=-movement)
 
-        will_overlap = any(box.overlaps(b) for b in overlapping_x)
+        will_overlap = any(box.overlaps(b) for b in overlappers_x)
         if will_overlap or abs(movement) > box.height / 2:
             continue
 
@@ -1739,12 +1739,12 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
     movements = dispersed(dispersed_boxes, col_boxes)
     dispersed_boxes.update(col_boxes)
 
-    overlapping_x = get_overlappers_x(frame_boxes, boxes)
+    overlappers_x = get_overlappers_x(frame_boxes, boxes)
     rows = get_box_rows(boxes)
     row_map = {f: next(r for r in rows if f in r) for f in frame_boxes}
 
     for row in frame_rows:
-        row_items = {f: ([dispersed_boxes[k] for k in overlapping_x[f]], row_map[f]) for f in row}
+        row_items = {f: ([dispersed_boxes[k] for k in overlappers_x[f]], row_map[f]) for f in row}
         results = {movements[f]: get_levelled_frames(row_items, boxes, movements[f]) for f in row}
         counts = {m: sum(len(nearest[f] & l) + 1 for f in l) for m, l in results.items()}
         largest = max(counts.values())
