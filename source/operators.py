@@ -23,11 +23,12 @@ VISIBLE_PBSDF_SOCKETS = 5
 SOCKET_SPACING_MULTIPLIER = 22
 OVERLAP_TOL = 0.01
 FRAME_PADDING = 29.8
-COMPACT_HEIGHT = 450
 EPS = 65
-MIN_ADJ_COLS = 2
-DISPERSE_MULT = 4
 TARGET_NODE_TYPES = {'ShaderNodeBsdfPrincipled', 'ShaderNodeDisplacement'}
+DISPERSE_MULT = 4
+INF_BEYOND = 10**10
+COMPACT_HEIGHT = 450
+MIN_ADJ_COLS = 2
 
 # -------------------------------------------------------------------
 #   Parents and children
