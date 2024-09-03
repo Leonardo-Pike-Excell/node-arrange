@@ -3,12 +3,13 @@
 from collections.abc import Hashable, Iterable, Iterator, MutableSequence
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
+from functools import cmp_to_key
 from itertools import chain, combinations, groupby, pairwise
 from operator import gt, itemgetter, lt
 from statistics import fmean
 
 import bpy
-from bpy.types import NodeFrame, Operator
+from bpy.types import Node, NodeFrame, Operator
 from bl_math import clamp
 from mathutils import Vector
 from mathutils.geometry import interpolate_bezier
@@ -1316,20 +1317,36 @@ def dispersed(movable_boxes, immovable_boxes) -> dict[Hashable, float]:
 # -------------------------------------------------------------------
 
 
-def get_singly_linked_ancestors(node):
-    if len(get_successors(node)) > 1:
+def get_singly_linked_ancestors(node) -> Iterator[Node]:
+    successors = get_successors(node)
+
+    if len(successors) > 1:
         return
 
-    if node.bl_idname != 'NodeReroute':
-        yield node
+    yield node
 
     predecessors = get_predecessors(node)
-    linked_singly = len(predecessors) == 1 and len(get_successors(node)) == 1
-    if linked_singly and predecessors[0].parent == node.parent:
-        yield from get_singly_linked_ancestors(predecessors[0])
+
+    if len(predecessors) != 1 or len(successors) != 1:
+        return
+
+    pred = predecessors[0]
+
+    if pred.parent != node.parent:
+        return
+
+    col = next(c for c in Maps.frame_columns[node.parent] if pred in c)
+    pred_right = max(map(get_right, col))
+    node_left = abs_loc(node).x
+    spaced_far = int(node_left - pred_right) > MARGIN.x
+    nodes = chain(*Maps.universal_columns)
+    if spaced_far and any(pred_right < abs_loc(n).x < node_left for n in nodes):
+        return
+
+    yield from get_singly_linked_ancestors(pred)
 
 
-def get_linear_chains(columns):
+def get_linear_chains(columns) -> list[list[Node]]:
     linear_chains = []
     for col in columns[:-1]:
         for node in col:
@@ -1337,36 +1354,72 @@ def get_linear_chains(columns):
                 continue
 
             lin_chain = list(get_singly_linked_ancestors(node))
-            valid = len(lin_chain) > 2 or (len(lin_chain) == 2 and not lin_chain[-1].inputs)
-            if valid and len({get_top(n) for n in lin_chain}) != 1:
+            strict_lin_chain = [n for n in lin_chain if n.bl_idname != 'NodeReroute']
+
+            length = len(strict_lin_chain)
+            if length > 1 and len({get_top(n) for n in strict_lin_chain}) != 1:
                 lin_chain.reverse()
                 linear_chains.append(lin_chain)
 
     return linear_chains
 
 
-def disperse_lin_chain_box(sub_boxes, col_boxes):
+def get_unfree_space(lin_chain, prev_lin_chain, columns) -> tuple[float, list[Node]]:
+    i = next(i for i, c in enumerate(columns) if lin_chain[-1] in c)
+    below = []
+    tops = []
+    for col, node in zip(columns[i:], reversed(lin_chain)):
+        below.extend(col[col.index(node) + 1:])
+
+        if node in {col[0], col[-1]}:
+            continue
+
+        top = get_top(node)
+        tops.append(top)
+
+        try:
+            other = next(n for n in prev_lin_chain if n in col)
+        except StopIteration:
+            continue
+
+        bottom = get_bottom(other)
+        if bottom < top:
+            tops.append(bottom - MARGIN.y)
+
+    movement = min(tops) - max(tops) if tops else 0
+    return (movement, below)
+
+
+def disperse_lin_chain_box(sub_boxes, col_boxes, prev_lin_chain) -> None:
+    if not col_boxes:
+        return
+
     bottom = min([b.bottom for b in sub_boxes])
     lin_chain_box = Box(sub_boxes[0].left, bottom, sub_boxes[-1].right, sub_boxes[0].top)
+    item = Disperser(0, lin_chain_box)
+    item.overlappers_x.extend([Disperser(*k) for k in col_boxes.items()])
 
-    prev_movement = 0
+    raw_lines_y = [b.line_y() for b in col_boxes.values()]
+    if prev_lin_chain:
+        prev_lin_chain_box = get_box(prev_lin_chain)
+        if lines_overlap(lin_chain_box.line_x(), prev_lin_chain_box.line_x()):
+            raw_lines_y.append([prev_lin_chain_box.bottom, max(chain(*raw_lines_y)) + INF_BEYOND])
+
+    lines_y = get_merged_lines(raw_lines_y)
     while any(a.overlaps(b) for a in sub_boxes for b in col_boxes.values()):
-        raw_movement = rect_overlap_vector(0, {0: col_boxes}, col_boxes | {0: lin_chain_box})[0]
-        lines_y = get_merged_lines([b.line_y() for b in col_boxes.values()])
-        movement = get_better_movement(lin_chain_box, lines_y, raw_movement)
+        raw_movement = item.get_overlap_movement()[0]
+        if round(raw_movement, 1) == 0:
+            raw_movement = DISPERSE_MULT
 
-        if prev_movement and (prev_movement > 0) != (movement > 0):
-            movement = prev_movement
-        else:
-            prev_movement = movement
-
+        movement = item.get_better_movement(raw_movement, lines_y, True)
         for box in lin_chain_box, *sub_boxes:
             box.move(y=movement)
 
 
-def align_lin_chain(lin_chain, linear_chains):
-    linked = get_predecessors(lin_chain[0]) + get_successors(lin_chain[-1])
-    ideal_y = fmean(map(get_top, linked))
+def align_lin_chain(lin_chain, linear_chains) -> None:
+    sockets = [Maps.sockets[s] for s in chain(lin_chain[0].inputs, lin_chain[-1].outputs)]
+    linked = map(get_real_sockets, chain(*sockets))
+    ideal_y = fmean(map(get_socket_y, chain(*linked)))
 
     sub_boxes = []
     for node in lin_chain:
@@ -1374,24 +1427,46 @@ def align_lin_chain(lin_chain, linear_chains):
         box.expand(y=MARGIN.y / 2)
         sub_boxes.append(box)
 
+    i = linear_chains.index(lin_chain)
+
+    unfixed = set(chain(*linear_chains[i:]))
     columns = []
-    unfixed = set(chain(*linear_chains[linear_chains.index(lin_chain):]))
     for col in Maps.frame_columns[lin_chain[0].parent]:
-        if any(n in col for n in lin_chain) and (new_col := [n for n in col if n not in unfixed]):
+        if not any(n in col for n in lin_chain):
+            continue
+
+        if new_col := [n for n in col if n not in unfixed]:
             columns.append(new_col)
 
-    disperse_lin_chain_box(sub_boxes, get_col_boxes(columns))
+    prev_lin_chain = linear_chains[i - 1] if i != 0 else None
+    disperse_lin_chain_box(sub_boxes, get_col_boxes(columns), prev_lin_chain)
+
     y = sub_boxes[0].top - MARGIN.y / 2
     for node in lin_chain:
         move_to(node, y=corrected_y(node, y))
 
 
-def align_linear_chains(frame):
+def align_linear_chains(frame) -> None:
     columns = Maps.frame_columns[frame]
-
     linear_chains = get_linear_chains(columns)
-    for lin_chain in linear_chains:
-        align_lin_chain(lin_chain, linear_chains)
+
+    def idx_in_col(lin_chain1, lin_chain2):
+        for col in columns:
+            idx = lambda c: next(i for i, n in enumerate(col) if n in c)
+            try:
+                return -1 if idx(lin_chain1) < idx(lin_chain2) else 1
+            except StopIteration:
+                continue
+
+        return 0
+
+    linear_chains.sort(key=cmp_to_key(idx_in_col))
+    for prev, curr in pairwise([[]] + linear_chains):
+        movement, below = get_unfree_space(curr, prev, columns)
+        if movement != 0:
+            move_nodes(below, y=movement - 1)
+
+        align_lin_chain(curr, linear_chains)
 
     for col in columns:
         col.sort(key=get_top, reverse=True)
