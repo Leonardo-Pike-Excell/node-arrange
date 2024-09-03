@@ -81,6 +81,16 @@ def get_successors(*nodes):
     return successors
 
 
+def get_real_sockets(socket):
+    node = socket.node
+    if node.bl_idname == 'NodeReroute':
+        new_socket = node.inputs[0] if socket.is_output else node.outputs[0]
+        for linked_socket in Maps.sockets[new_socket]:
+            yield from get_real_sockets(linked_socket)
+    else:
+        yield socket
+
+
 # -------------------------------------------------------------------
 #   Locations
 # -------------------------------------------------------------------
@@ -181,6 +191,10 @@ def get_output_y(output, accurate=True):
     y = get_top(node) - TOP_OFFSET
     outputs = [o for o in node.outputs if not o.is_unavailable]
     return y - outputs.index(output) * SOCKET_SPACING_MULTIPLIER
+
+
+def get_socket_y(socket, accurate=True):
+    return get_output_y(socket, accurate) if socket.is_output else get_input_y(socket, accurate)
 
 
 def corrected_y(node, target_y):
@@ -934,16 +948,6 @@ def arrange_principled():
 # -------------------------------------------------------------------
 
 
-def get_real_sockets(socket):
-    node = socket.node
-    if node.bl_idname == 'NodeReroute':
-        new_socket = node.inputs[0] if socket.is_output else node.outputs[0]
-        for linked_socket in Maps.sockets[new_socket]:
-            yield from get_real_sockets(linked_socket)
-    else:
-        yield socket
-
-
 def get_linked_y_locs(node):
     y_locs = []
     is_reroute = node.bl_idname == 'NodeReroute'
@@ -952,16 +956,9 @@ def get_linked_y_locs(node):
         if not socket.is_linked or socket.is_unavailable:
             continue
 
-        if socket.is_output:
-            get_socket_y = get_output_y
-            get_linked_socket_y = get_input_y
-        else:
-            get_socket_y = get_input_y
-            get_linked_socket_y = get_output_y
-
         socket_y = get_socket_y(socket, not is_reroute)
-        for linked_socket in chain(*[get_real_sockets(s) for s in Maps.sockets[socket]]):
-            linked_y = get_linked_socket_y(linked_socket, is_reroute)
+        for linked_socket in chain(*map(get_real_sockets, Maps.sockets[socket])):
+            linked_y = get_socket_y(linked_socket, is_reroute)
 
             if linked_socket.node.bl_idname == 'NodeReroute':
                 linked_y += abs_loc(node).y - socket_y
@@ -997,8 +994,8 @@ def get_ideal_y(node, divided_rows, line_y):
     if not y_locs:
         return y
 
-    rows = [r for r in divided_rows if node in r]
-    if rows and node not in {rows[0][0], rows[0][-1]}:
+    row = next((r for r in divided_rows if node in r), None)
+    if row and node not in {row[0], row[-1]}:
         return y
 
     if not parent:
