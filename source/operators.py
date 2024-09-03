@@ -1088,50 +1088,6 @@ def move_to_linked_y(columns):
 # -------------------------------------------------------------------
 
 
-def rect_overlap_vector(key1, overlapping_x, boxes):
-    box1 = boxes[key1]
-    center1 = box1.center
-
-    vec = Vector((0, 0))
-    overlapping_keys = []
-
-    for key2 in overlapping_x[key1]:
-        if box1.overlaps(boxes[key2]):
-            vec += boxes[key2].center - center1
-            overlapping_keys.append(key2)
-
-    if not overlapping_keys:
-        return (vec.y, overlapping_keys)
-
-    vec /= len(overlapping_keys)
-    vec.negate()
-    vec.normalize()
-
-    return (vec.y * DISPERSE_MULT, overlapping_keys)
-
-
-def get_better_movement(box, lines_y, movement):
-    center = box.center.y
-    height = box.height
-
-    upper_line = (center, center + height)
-    upper_overlap = max([l[0] - center for l in lines_y if lines_overlap(upper_line, l)],
-      default=0)
-
-    lower_line = (center - height, center)
-    lower_overlap = min([center - l[1] for l in lines_y if lines_overlap(lower_line, l)],
-      default=0)
-
-    if movement > 0:
-        diff = upper_overlap - lower_overlap
-        better_movement = -DISPERSE_MULT
-    else:
-        diff = lower_overlap - upper_overlap
-        better_movement = DISPERSE_MULT
-
-    return better_movement if diff > height / 2 else movement
-
-
 def get_merged_lines(lines) -> list[list[float]]:
     if not lines:
         return []
