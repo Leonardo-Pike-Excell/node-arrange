@@ -377,6 +377,12 @@ def lines_overlap(line1, line2, tol=OVERLAP_TOL):
     # yapf: enable
 
 
+def get_line_overlap(line1, line2):
+    bottoms, tops = zip(line1, line2)
+    val = -max(bottoms) + min(tops)
+    return val if val >= 0 else 0
+
+
 # -------------------------------------------------------------------
 #   Update locations
 # -------------------------------------------------------------------
@@ -1436,11 +1442,6 @@ def align_highest_nodes(columns):
 # -------------------------------------------------------------------
 #   Compact frames X
 # -------------------------------------------------------------------
-
-
-def get_line_overlap(line1, line2):
-    bottoms, tops = zip(line1, line2)
-    return -max(bottoms) + min(tops)
 
 
 def saves_space(box1, box2, boxes):
