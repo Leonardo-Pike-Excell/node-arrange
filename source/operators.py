@@ -1084,24 +1084,6 @@ def move_to_linked_y(columns):
 # -------------------------------------------------------------------
 
 
-def get_overlappers_x(real_boxes, boxes):
-    seen = set()
-    overlapping_x = defaultdict(list)
-    for a, box1 in real_boxes.items():
-        for b, box2 in boxes.items():
-            if {a, b} in seen or a == b:
-                continue
-
-            if lines_overlap(box1.line_x(), box2.line_x()) and not is_parented(a, b):
-                overlapping_x[a].append(b)
-                if b in real_boxes:
-                    overlapping_x[b].append(a)
-
-            seen.add(frozenset((a, b)))
-
-    return overlapping_x
-
-
 def rect_overlap_vector(key1, overlapping_x, boxes):
     box1 = boxes[key1]
     center1 = box1.center
@@ -1772,6 +1754,24 @@ def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
         rows.append(row)
 
     return rows
+
+
+def get_overlappers_x(real_boxes, boxes) -> defaultdict[Hashable, list[Hashable]]:
+    seen = set()
+    overlappers_x = defaultdict(list)
+    for a, box1 in real_boxes.items():
+        for b, box2 in boxes.items():
+            if {a, b} in seen or a == b:
+                continue
+
+            if lines_overlap(box1.line_x(), box2.line_x()) and not is_parented(a, b):
+                overlappers_x[a].append(b)
+                if b in real_boxes:
+                    overlappers_x[b].append(a)
+
+            seen.add(frozenset((a, b)))
+
+    return overlappers_x
 
 
 def will_break_box_row(frame, row, boxes, line_x) -> bool:
