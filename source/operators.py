@@ -760,16 +760,19 @@ def move_outlier(node):
 
 
 def get_new_columns(frame):
-    sorted_nodes = sorted(Maps.used_children[frame], key=lambda n: abs_loc(n).x)
-    col = [sorted_nodes[0]]
+    nodes_left_to_right = sorted(Maps.used_children[frame], key=lambda n: abs_loc(n).x)
+
+    prev_node = nodes_left_to_right[0]
+    col = [prev_node]
     columns = []
-    for node in sorted_nodes[1:]:
-        max_right = max([abs_loc(n).x + dimensions(n).x for n in col])
-        if abs_loc(node).x < max_right:
+    for node in nodes_left_to_right[1:]:
+        if abs_loc(node).x <= abs_loc(prev_node).x + EPS:
             col.append(node)
         else:
             columns.append(col)
             col = [node]
+
+        prev_node = node
 
     columns.append(col)
 
