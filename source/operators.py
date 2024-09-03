@@ -322,12 +322,12 @@ def sorted_boxes(boxes):
 
 def get_box_rows(boxes):
     tops = {k: b.top for k, b in boxes.items()}
-    boxes_ascending = sorted(boxes, key=tops.get)
+    boxes_asc = sorted(boxes, key=tops.get)
 
-    prev_key = boxes_ascending[0]
+    prev_key = boxes_asc[0]
     row = [prev_key]
     rows = []
-    for key in boxes_ascending[1:]:
+    for key in boxes_asc[1:]:
         if tops[key] <= tops[prev_key] + EPS:
             row.append(key)
         else:
