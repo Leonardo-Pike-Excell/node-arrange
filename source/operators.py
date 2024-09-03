@@ -781,28 +781,41 @@ def get_new_columns(frame):
     return columns
 
 
-def align_columns(columns):
-    for col in columns:
-        col.sort(key=lambda n: dimensions(n).x, reverse=True)
+def get_aligned_columns(prev_col, curr_col, columns):
+    x = abs_loc(curr_col[0]).x
 
-    for i, col in enumerate(columns):
-        x = abs_loc(col[0]).x
+    for node in curr_col:
+        move_to(node, x=x)
 
-        for node in col:
-            move_to(node, x=x)
+    col = curr_col
+    i = columns.index(curr_col)
 
-        if i == 0:
-            continue
-
-        prev = columns[i - 1][0]
-        movement = -x + get_right(prev) + MARGIN.x
-
-        if movement <= 0:
-            continue
-
+    if prev_col and (movement := -x + get_right(prev_col[0]) + MARGIN.x) > 0:
         to_move = [f for f in Maps.frame_columns if f and get_frame_box(f, False).left > x]
         to_move.extend(chain(*columns[i:]))
-        move_nodes(to_move, x=movement)
+        if link_stretch(to_move, movement) != 0:
+            movement_to_prev = abs_loc(prev_col[0]).x - x
+            if link_stretch(curr_col, movement_to_prev) == 0:
+                col = prev_col + curr_col
+                for node in curr_col:
+                    move(node, x=movement_to_prev)
+        else:
+            move_nodes(to_move, x=movement)
+
+    col.sort(key=lambda n: dimensions(n).x, reverse=True)
+    yield col
+    if columns[-1] != curr_col:
+        yield from get_aligned_columns(col, columns[i + 1], columns)
+
+
+def merge_columns(columns):
+    for node in dict.fromkeys(chain(*columns)):
+        components = [c for c in columns if node in c]
+
+        for col in components:
+            columns.remove(col)
+
+        columns.append(list(set(chain(*components))))
 
 
 def line_overlap_movement(target, lines):
@@ -844,15 +857,16 @@ def regenerate_columns(frame):
         move_outlier(node)
 
     new_columns = get_new_columns(frame)
-    align_columns(new_columns)
+    newer_columns = list(get_aligned_columns(None, new_columns[0], new_columns))
+    merge_columns(newer_columns)
 
-    for col in new_columns:
+    for col in newer_columns:
         disperse_nodes_y(col)
         col.sort(key=get_top, reverse=True)
         contract_nodes_y(col)
 
-    new_columns.reverse()
-    Maps.frame_columns[frame] = new_columns
+    newer_columns.reverse()
+    Maps.frame_columns[frame] = newer_columns
 
 
 # -------------------------------------------------------------------
