@@ -2024,13 +2024,13 @@ def arrange_unframed_reroutes(segment):
 
 
 def get_unused(frame):
-    active_nodes = set(chain(*Maps.universal_columns))
+    used_nodes = set(chain(*Maps.universal_columns))
     unused = []
     for node in Maps.all_children[frame]:
         if not node.select or node in Maps.used_children[frame]:
             continue
 
-        if node.bl_idname == 'NodeFrame' and active_nodes.intersection(Maps.all_children[node]):
+        if node.bl_idname == 'NodeFrame' and used_nodes.intersection(Maps.all_children[node]):
             continue
 
         unused.append(node)
