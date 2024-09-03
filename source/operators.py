@@ -1568,34 +1568,36 @@ def compact_frames_x(frame_boxes, col_boxes):
 
         # -------------------------------------------------------------------
 
-        for key2 in get_overlapping(nodes_right, boxes, frame1, gt):
-            box2 = boxes[key2]
+        if not any(len(nodes_right.intersection(c)) not in {0, len(c)} for c in col_boxes):
+            for key2 in get_overlapping(nodes_right, boxes, frame1, gt):
+                box2 = boxes[key2]
 
-            if key2 in frame_boxes:
-                if link_stretch(children1, center1 - box2.center.x) <= link_stretch(children1):
-                    continue
+                if key2 in frame_boxes:
+                    if link_stretch(children1, center1 - box2.center.x) <= link_stretch(children1):
+                        continue
 
-            movement = box1.right - box2.left
-            if link_stretch(nodes_right, movement) <= link_stretch(nodes_right):
-                move_nodes(nodes_right, x=movement)
-                update_boxes_by_nodes(nodes_right, boxes, movement)
-                break
+                movement = box1.right - box2.left
+                if link_stretch(nodes_right, movement) <= link_stretch(nodes_right):
+                    move_nodes(nodes_right, x=movement)
+                    update_boxes_by_nodes(nodes_right, boxes, movement)
+                    break
 
         # -------------------------------------------------------------------
 
-        for key2 in get_overlapping(nodes_left, boxes, frame1, lt):
-            box2 = boxes[key2]
+        if not any(len(nodes_left.intersection(c)) not in {0, len(c)} for c in col_boxes):
+            for key2 in get_overlapping(nodes_left, boxes, frame1, lt):
+                box2 = boxes[key2]
 
-            if key2 in frame_boxes:
-                children2 = children[key2]
-                if link_stretch(children2, box2.center.x - center1) <= link_stretch(children2):
-                    continue
+                if key2 in frame_boxes:
+                    children2 = children[key2]
+                    if link_stretch(children2, box2.center.x - center1) <= link_stretch(children2):
+                        continue
 
-            movement = -box2.right + box1.left
-            if link_stretch(nodes_left, movement) <= link_stretch(nodes_left):
-                move_nodes(nodes_left, x=movement)
-                update_boxes_by_nodes(nodes_left, boxes, movement)
-                break
+                movement = -box2.right + box1.left
+                if link_stretch(nodes_left, movement) <= link_stretch(nodes_left):
+                    move_nodes(nodes_left, x=movement)
+                    update_boxes_by_nodes(nodes_left, boxes, movement)
+                    break
 
 
 # -------------------------------------------------------------------
