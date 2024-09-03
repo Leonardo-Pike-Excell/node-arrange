@@ -1084,7 +1084,7 @@ def move_to_linked_y(columns):
 # -------------------------------------------------------------------
 
 
-def get_overlapping_x(real_boxes, boxes):
+def get_overlappers_x(real_boxes, boxes):
     seen = set()
     overlapping_x = defaultdict(list)
     for a, box1 in real_boxes.items():
@@ -1178,7 +1178,7 @@ def dispersed(frame_boxes, col_boxes):
     old_tops = {f: b.top for f, b in frame_boxes.items()}
 
     boxes = frame_boxes | col_boxes
-    overlapping_x = get_overlapping_x(frame_boxes, boxes)
+    overlapping_x = get_overlappers_x(frame_boxes, boxes)
     pairs = [(boxes[k1], boxes[k2]) for k1, v in overlapping_x.items() for k2 in v]
 
     prev_movements = {}
@@ -1631,13 +1631,13 @@ def get_nested_boxes(frame_boxes):
         yield from get_nested_boxes(nested_frame_boxes)
 
 
-def disperse_frames(frame_boxes, col_boxes):
+def disperse_frames(frame_boxes, col_boxes) -> None:
     movements = dispersed(frame_boxes, col_boxes)
     for frame, movement in movements.items():
         move(frame, y=-movement)
 
 
-def center_frames_y(frame_boxes, nearest):
+def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
     frame_boxes = dict(reversed(frame_boxes.items()))
 
     x_locs = [abs_loc(c[0][0]).x for c in Maps.frame_columns.values()]
@@ -1690,7 +1690,7 @@ def center_frames_y(frame_boxes, nearest):
     return rows
 
 
-def will_break_box_row(frame, row, boxes, line_x):
+def will_break_box_row(frame, row, boxes, line_x) -> bool:
     row = [k for k in row if k == frame or not lines_overlap(line_x, boxes[k].line_x())]
     i = row.index(frame)
     leftwards = row[(i - MIN_ADJ_COLS):(i)]
@@ -1700,7 +1700,7 @@ def will_break_box_row(frame, row, boxes, line_x):
       for a, b in pairwise(leftwards + rightwards))
 
 
-def get_levelled_frames(row_items, boxes, movement):
+def get_levelled_frames(row_items, boxes, movement) -> set[NodeFrame]:
     levelled = set()
     for frame, (overlapping_x, row) in row_items.items():
         box = replace(boxes[frame])
@@ -1716,7 +1716,7 @@ def get_levelled_frames(row_items, boxes, movement):
     return levelled
 
 
-def center_and_disperse_frames_y(frame_boxes, col_boxes):
+def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
     nested_boxes = tuple(get_nested_boxes(frame_boxes))
     for nested_frame_boxes, nested_col_boxes in reversed(nested_boxes):
         disperse_frames(nested_frame_boxes, nested_col_boxes)
@@ -1740,7 +1740,7 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes):
     movements = dispersed(dispersed_boxes, col_boxes)
     dispersed_boxes.update(col_boxes)
 
-    overlapping_x = get_overlapping_x(frame_boxes, boxes)
+    overlapping_x = get_overlappers_x(frame_boxes, boxes)
     rows = get_box_rows(boxes)
     row_map = {f: next(r for r in rows if f in r) for f in frame_boxes}
 
