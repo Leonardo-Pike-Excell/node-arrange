@@ -832,6 +832,13 @@ def disperse_nodes_y(col):
         move_to(node, y=corrected_y(node, line[1] - margin))
 
 
+def contract_nodes_y(col):
+    for node1, node2 in pairwise(col):
+        dist = get_bottom(node1) - get_top(node2)
+        if dist > MARGIN.y:
+            move(node2, y=dist - MARGIN.y)
+
+
 def regenerate_columns(frame):
     for node in Maps.used_children[frame]:
         move_outlier(node)
@@ -842,6 +849,7 @@ def regenerate_columns(frame):
     for col in new_columns:
         disperse_nodes_y(col)
         col.sort(key=get_top, reverse=True)
+        contract_nodes_y(col)
 
     new_columns.reverse()
     Maps.frame_columns[frame] = new_columns
