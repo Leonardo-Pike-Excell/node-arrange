@@ -805,7 +805,7 @@ def align_columns(columns):
         move_nodes(to_move, x=movement)
 
 
-def line_overlap_vector(target, lines):
+def line_overlap_movement(target, lines):
     l1 = lines[target]
     center = sum(l1) / 2
 
@@ -824,7 +824,7 @@ def disperse_nodes_y(col):
     pairs = [(lines[n1], lines[n2]) for n1, n2 in combinations(lines, 2)]
     while any(lines_overlap(l1, l2) for l1, l2 in pairs):
         for node, line in lines.items():
-            movement = line_overlap_vector(node, lines)
+            movement = line_overlap_movement(node, lines)
             line[0] += movement
             line[1] += movement
 
