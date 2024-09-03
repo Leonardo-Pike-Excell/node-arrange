@@ -251,16 +251,10 @@ class Box:
         # yapf: enable
 
     def get_leftwards(self, boxes):
-        try:
-            return next(k for k, b in reversed(boxes.items()) if b.right <= self.left)
-        except StopIteration:
-            return None
+        return next((k for k, b in reversed(boxes.items()) if b.right <= self.left), None)
 
     def get_rightwards(self, boxes):
-        try:
-            return next(k for k, b in boxes.items() if b.left >= self.right)
-        except StopIteration:
-            return None
+        return next((k for k, b in boxes.items() if b.left >= self.right), None)
 
 
 def get_box(nodes):
