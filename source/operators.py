@@ -816,11 +816,11 @@ def merge_columns(columns):
         columns.append(list(set(chain(*components))))
 
 
-def line_overlap_movement(target, lines):
-    l1 = lines[target]
+def line_overlap_movement(node, lines):
+    l1 = lines[node]
     center = sum(l1) / 2
 
-    y = [sum(l2) / 2 - center for n, l2 in lines.items() if target != n and lines_overlap(l1, l2)]
+    y = [sum(l2) / 2 - center for n, l2 in lines.items() if node != n and lines_overlap(l1, l2)]
 
     if not y:
         return 0
@@ -830,7 +830,9 @@ def line_overlap_movement(target, lines):
 
 def disperse_nodes_y(col):
     margin = MARGIN.y / 2
-    lines = {n: [get_bottom(n) - margin, get_top(n) + margin] for n in col}
+    lines = {#
+      n: [get_bottom(n) - margin, get_top(n) + margin]
+      for n in col if n.bl_idname != 'NodeReroute'}
 
     pairs = [(lines[n1], lines[n2]) for n1, n2 in combinations(lines, 2)]
     while any(lines_overlap(l1, l2) for l1, l2 in pairs):
