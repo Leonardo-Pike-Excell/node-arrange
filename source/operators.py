@@ -1934,8 +1934,7 @@ def get_beyond(box1, boxes):
     beyond = []
     distances = []
     for key2, box2 in boxes.items():
-        is_nested = isinstance(key2, NodeFrame) and key2.parent
-        if is_nested or box2.left <= box1.left or box2.right <= box1.right:
+        if box2.left <= box1.left or box2.right <= box1.right:
             continue
 
         if isinstance(key2, tuple):
