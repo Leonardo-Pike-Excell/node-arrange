@@ -1907,7 +1907,7 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
         if leftwards := box1.get_leftwards(boxes):
             nearest[frame1].add(leftwards)
 
-    old_values = {f: (f.location.y, replace(b)) for f, b in frame_boxes.items()}
+    old_values = {f: (b.top, replace(b)) for f, b in frame_boxes.items()}
     frame_rows = center_frames_y(frame_boxes, nearest)
 
     dispersed_boxes = {f: replace(b) for f, b in frame_boxes.items()}
@@ -1927,7 +1927,7 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
         if largest < 2:
             for frame in row:
                 old_y, old_box = old_values[frame]
-                move(frame, y=old_y - frame.location.y)
+                move(frame, y=old_y - frame_boxes[frame].top)
                 frame_boxes[frame] = old_box
 
             continue
