@@ -1563,12 +1563,12 @@ def saves_space(box1: Box, box2: Box, boxes: dict[Hashable, Box]) -> bool:
     return height > COMPACT_HEIGHT + MARGIN.y * 2
 
 
-def get_overlapping(to_move, boxes, key1, op):
+def get_overlapping(to_move, boxes, key1, cmp):
     box1 = boxes[key1]
     frames_to_move = {n.parent for n in to_move}
     overlapping = []
     for key2, box2 in boxes.items():
-        if op(box1.left, box2.left):
+        if cmp(box1.left, box2.left):
             continue
 
         if isinstance(key2, NodeFrame):
