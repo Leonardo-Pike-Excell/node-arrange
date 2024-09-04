@@ -302,9 +302,11 @@ class Box:
     def center(self) -> Vector:
         return Vector((self.left + self.right, self.bottom + self.top)) / 2
 
+    @property
     def line_x(self) -> Line:
         return Line(self.left, self.right)
 
+    @property
     def line_y(self) -> Line:
         return Line(self.bottom, self.top)
 
@@ -715,7 +717,7 @@ def ideal_x_movement(nodes, line_x):
 
 def ideal_frame_x_movement(frame):
     children = Maps.used_children[frame]
-    return ideal_x_movement(children, get_box(children).line_x())
+    return ideal_x_movement(children, get_box(children).line_x)
 
 
 def resolved_with_min_movement(children):
@@ -1109,7 +1111,7 @@ def move_to_linked_y(columns: Sequence[Sequence[Node]]) -> None:
 
         divided_rows.append(row[curr_idx:j + 1])
 
-    line_y = get_box(nodes).line_y()
+    line_y = get_box(nodes).line_y
 
     for col in columns:
         ideal_y_locs = {n: get_ideal_y(n, divided_rows, line_y) for n in col if n not in reroutes}
@@ -1165,13 +1167,13 @@ class Disperser:
     switched_dir_before: bool = False
 
     def extend_overlappers_x(self, items: Iterable['Disperser']) -> None:
-        line = self.box.line_x()
+        line = self.box.line_x
         for item in items:
             if item == self:
                 continue
 
             if self not in item.overlappers_x:
-                if not line.overlaps(item.box.line_x()) or is_parented(self, item):
+                if not line.overlaps(item.box.line_x) or is_parented(self, item):
                     continue
 
             self.overlappers_x.append(item)
@@ -1207,7 +1209,7 @@ class Disperser:
         if keys:
             keys.extend([k for k in self.overlappers_x if k.frozen_by])
 
-        return get_merged_lines([k.box.line_y() for k in keys])
+        return get_merged_lines([k.box.line_y for k in keys])
 
     def get_better_movement(
       self,
@@ -1232,7 +1234,7 @@ class Disperser:
             movement *= -1
 
         if prevent_overshoot:
-            diff = box.height - box.line_y().overlap_amount(closest_gap)
+            diff = box.height - box.line_y.overlap_amount(closest_gap)
             if abs(movement) > diff:
                 movement = -diff if movement < 0 else diff
 
@@ -1257,7 +1259,7 @@ def freeze_movables(competing: MutableSequence[Disperser], movement: float) -> N
     competing.remove(favoured)
 
     if gap := get_closest_gap(favoured.box, favoured.get_lines_y()):
-        gap_overlaps = [(k, k.box.line_y().overlap_amount(gap)) for k in competing]
+        gap_overlaps = [(k, k.box.line_y.overlap_amount(gap)) for k in competing]
         preventer, overlap = max(gap_overlaps, key=itemgetter(1))
         if gap.length - overlap < favoured.box.height:
             preventer.frozen_by = None
@@ -1400,10 +1402,10 @@ def disperse_lin_chain_box(sub_boxes, col_boxes, prev_lin_chain) -> None:
     item = Disperser(0, lin_chain_box)
     item.overlappers_x.extend([Disperser(*k) for k in col_boxes.items()])
 
-    raw_lines_y = [b.line_y() for b in col_boxes.values()]
+    raw_lines_y = [b.line_y for b in col_boxes.values()]
     if prev_lin_chain:
         prev_lin_chain_box = get_box(prev_lin_chain)
-        if lin_chain_box.line_x().overlaps(prev_lin_chain_box.line_x()):
+        if lin_chain_box.line_x.overlaps(prev_lin_chain_box.line_x):
             endless_top = max(chain(*raw_lines_y)) + INF_BEYOND
             raw_lines_y.append(Line(prev_lin_chain_box.bottom, endless_top))
 
@@ -1528,7 +1530,7 @@ def saves_space(box1: Box, box2: Box, boxes: dict[Hashable, Box]) -> bool:
     # the frame. (This is a heuristic meant to approximate how much space
     # would be saved after dispersing the frames.)
 
-    line1 = box1.line_y()
+    line1 = box1.line_y
     center2 = box2.center.y
     upper_overlap = line1.overlap_amount(Line(center2, box2.top))
     lower_overlap = line1.overlap_amount(Line(box2.bottom, center2))
@@ -1541,11 +1543,11 @@ def saves_space(box1: Box, box2: Box, boxes: dict[Hashable, Box]) -> bool:
 
     y_locs = []
     for key3, box3 in boxes.items():
-        if Line(box2.left, box1.right).overlaps(box3.line_x()) and condition(box3):
+        if Line(box2.left, box1.right).overlaps(box3.line_x) and condition(box3):
             if isinstance(key3, NodeFrame):
                 height += box3.height
             else:
-                y_locs.extend(box3.line_y())
+                y_locs.extend(box3.line_y)
 
     if y_locs:
         height += max(y_locs) - min(y_locs)
@@ -1799,7 +1801,7 @@ def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
             if frame2 in seen or frame1 == frame2 or frame1.parent != frame2.parent:
                 continue
 
-            if not box1.line_y().overlaps(box2.line_y()):
+            if not box1.line_y.overlaps(box2.line_y):
                 continue
 
             height1 = box1.height
@@ -1815,8 +1817,8 @@ def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
             if movement == 0:
                 continue
 
-            prev_left, prev_right = frame_boxes[row[-1]].line_x()
-            curr_left, curr_right = box2.line_x()
+            prev_left, prev_right = frame_boxes[row[-1]].line_x
+            curr_left, curr_right = box2.line_x
 
             if prev_left > curr_left or curr_right < prev_right:
                 break
@@ -1845,7 +1847,7 @@ def get_overlappers_x(
             if {a, b} in seen or a == b:
                 continue
 
-            if box1.line_x().overlaps(box2.line_x()) and not is_parented(a, b):
+            if box1.line_x.overlaps(box2.line_x) and not is_parented(a, b):
                 overlappers_x[a].append(b)
                 if b in real_boxes:
                     overlappers_x[b].append(a)
@@ -1856,7 +1858,7 @@ def get_overlappers_x(
 
 
 def will_break_box_row(frame, row, boxes, line_x) -> bool:
-    row = [k for k in row if k == frame or not line_x.overlaps(boxes[k].line_x())]
+    row = [k for k in row if k == frame or not line_x.overlaps(boxes[k].line_x)]
     i = row.index(frame)
     leftwards = row[(i - MIN_ADJ_COLS):(i)]
     rightwards = row[(i + 1):(i + MIN_ADJ_COLS + 1)]
@@ -1875,7 +1877,7 @@ def get_levelled_frames(row_items, boxes, movement) -> set[NodeFrame]:
         if will_overlap or abs(movement) > box.height / 2:
             continue
 
-        if movement == 0 or not will_break_box_row(frame, row, boxes, box.line_x()):
+        if movement == 0 or not will_break_box_row(frame, row, boxes, box.line_x):
             levelled.add(frame)
 
     return levelled
@@ -2154,7 +2156,7 @@ def arrange_all_framed_reroutes(frame_boxes):
 
             disperse_reroutes_x(segments)
 
-            bottom, top = frame_boxes[frame].line_y()
+            bottom, top = frame_boxes[frame].line_y
             for reroute, old_loc in zip(reroutes, old_locs):
                 loc = abs_loc(reroute)
                 if loc.y > top or loc.y < bottom:
