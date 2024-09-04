@@ -382,7 +382,7 @@ class Box:
         return next((k for k, b in boxes.items() if b.left >= self.right), None)
 
 
-def get_box(nodes):
+def get_box(nodes: Iterable[Node]) -> Box:
     x_vals = []
     y_vals = []
     for node in nodes:
@@ -393,7 +393,8 @@ def get_box(nodes):
     return Box(min(x_vals), min(y_vals), max(x_vals), max(y_vals))
 
 
-def get_frame_box(frame, expand=True):
+def get_frame_box(frame: NodeFrame, expand: bool = True) -> Box:
+
     # `frame.width` and `frame.height` can't be used here: since they only
     # get evaluated on UI redraw, they'll be incorrect if the rearrangement of
     # the frame's children changed the frame's size.
@@ -414,7 +415,7 @@ def get_frame_box(frame, expand=True):
     return box
 
 
-def get_col_boxes(columns):
+def get_col_boxes(columns: Iterable[Sequence[Node]]) -> dict[tuple[Node, ...], Box]:
     subcolumns = []
     for col in columns:
         if len(col) == 1:
@@ -441,11 +442,11 @@ def get_col_boxes(columns):
     return col_boxes
 
 
-def sorted_boxes(boxes):
+def sorted_boxes(boxes: dict[Hashable, Box]) -> dict[Hashable, Box]:
     return dict(sorted(boxes.items(), key=lambda kb: kb[1].left))
 
 
-def get_box_rows(boxes):
+def get_box_rows(boxes: dict[Hashable, Box]) -> list[list[Hashable]]:
     tops = {k: b.top for k, b in boxes.items()}
     boxes_asc = sorted(boxes, key=tops.get)
 
