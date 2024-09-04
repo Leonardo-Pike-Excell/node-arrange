@@ -2144,35 +2144,33 @@ def disperse_reroutes_x(segments, boxes=None):
 
 
 def arrange_all_framed_reroutes(frame_boxes):
-    while True:
-        has_moved = False
-        for frame, children in Maps.used_children.items():
-            if not frame or len(children) == 1:
-                continue
 
-            segments = get_reroute_segments(children)
+    # A while loop isn’t worth the risk here. The higher the UI scale, the
+    # more incorrect the movement of `bpy.ops.translate()` is (but not in a
+    # consistent way that can be accounted for). And so reroutes could
+    # endlessly try and fail to move into a position, overshooting it each
+    # time. Two iterations should also be all that’s needed.
 
-            if not segments:
-                continue
+    items = [(f, c) for f, c in Maps.used_children.items() if f and len(c) > 1]
+    for frame, children in items * 2:
+        segments = get_reroute_segments(children)
 
-            reroutes = tuple(chain(*segments))
-            old_locs = [abs_loc(r) for r in reroutes]
+        if not segments:
+            continue
 
-            for segm in segments:
-                arrange_framed_reroutes(segm, children)
+        reroutes = tuple(chain(*segments))
+        old_y_locs = [abs_loc(r).y for r in reroutes]
 
-            disperse_reroutes_x(segments)
+        for segm in segments:
+            arrange_framed_reroutes(segm, children)
 
-            bottom, top = frame_boxes[frame].line_y
-            for reroute, old_loc in zip(reroutes, old_locs):
-                loc = abs_loc(reroute)
-                if loc.y > top or loc.y < bottom:
-                    move_to(reroute, y=old_loc.y)
-                elif any(a > 2 for a in loc - old_loc):
-                    has_moved = True
+        disperse_reroutes_x(segments)
 
-        if not has_moved:
-            return
+        box = frame_boxes[frame]
+        for reroute, old_y in zip(reroutes, old_y_locs):
+            loc = abs_loc(reroute)
+            if loc.y > box.top or loc.y < box.bottom:
+                move_to(reroute, y=old_y)
 
 
 def arrange_unframed_reroutes(segment):
