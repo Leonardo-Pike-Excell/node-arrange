@@ -82,6 +82,49 @@ def get_successors(*nodes):
     return successors
 
 
+def get_ancestors(nodes, seen=None):
+    if seen is None:
+        seen = set()
+
+    for node in nodes:
+        if node in seen:
+            continue
+
+        yield node
+        seen.add(node)
+
+        for input in node.inputs:
+            yield from get_ancestors(Maps.links[input], seen)
+
+
+def get_descendants(nodes, seen=None):
+    if seen is None:
+        seen = set()
+
+    for node in nodes:
+        if node in seen:
+            continue
+
+        yield node
+        seen.add(node)
+
+        queue = set(get_successors(node))
+        parent = node.parent
+
+        if parent:
+            queue.update(Maps.used_children[parent])
+
+        columns = Maps.frame_columns[parent]
+        try:
+            idx = next(i for i, c in enumerate(columns) if node in c)
+        except StopIteration:
+            pass
+        else:
+            queue.update(chain(*columns[:idx + 1]))
+
+        yield from get_descendants(queue, seen)
+
+
 def get_real_sockets(socket):
     node = socket.node
     if node.bl_idname == 'NodeReroute':
@@ -626,49 +669,6 @@ def get_output_lengths(nodes):
 # -------------------------------------------------------------------
 #   Make space for stretched
 # -------------------------------------------------------------------
-
-
-def get_descendants(nodes, seen=None):
-    if seen is None:
-        seen = set()
-
-    for node in nodes:
-        if node in seen:
-            continue
-
-        yield node
-        seen.add(node)
-
-        queue = set(get_successors(node))
-        parent = node.parent
-
-        if parent:
-            queue.update(Maps.used_children[parent])
-
-        columns = Maps.frame_columns[parent]
-        try:
-            idx = next(i for i, c in enumerate(columns) if node in c)
-        except StopIteration:
-            pass
-        else:
-            queue.update(chain(*columns[:idx + 1]))
-
-        yield from get_descendants(queue, seen)
-
-
-def get_ancestors(nodes, seen=None):
-    if seen is None:
-        seen = set()
-
-    for node in nodes:
-        if node in seen:
-            continue
-
-        yield node
-        seen.add(node)
-
-        for input in node.inputs:
-            yield from get_ancestors(Maps.links[input], seen)
 
 
 def ideal_x_movement(nodes, line_x):
