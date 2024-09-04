@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from collections.abc import Hashable, Iterable, Iterator, MutableSequence
+from collections.abc import Hashable, Iterable, Iterator, MutableSequence, Sequence
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from functools import cmp_to_key
@@ -204,6 +204,71 @@ def corrected_y(node, target_y):
 
 
 # -------------------------------------------------------------------
+#   Lines
+# -------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class Line:
+    a: float
+    b: float
+
+    def __post_init__(self) -> None:
+        if self.a > self.b:
+            raise ValueError(f"'Line' attribute 'a' is greater than 'b': ({self.a}, {self.b})")
+
+    def __iter__(self) -> Iterator[float]:
+        yield from (self.a, self.b)
+
+    @property
+    def length(self) -> float:
+        return self.b - self.a
+
+    @property
+    def center(self) -> float:
+        return sum(self) / 2
+
+    def expand(self, val: float) -> None:
+        self.a -= val
+        self.b += val
+
+    def move(self, val: float) -> None:
+        self.a += val
+        self.b += val
+
+    def overlaps(self, other: 'Line', tol: float = OVERLAP_TOL) -> bool:
+        a1, b1 = self
+        a2, b2 = other
+
+        a1 += tol
+        b1 -= tol
+        a2 += tol
+        b2 -= tol
+
+        # yapf: disable
+        return (
+          (a1 <= b2 <= b1)
+          or (a1 <= a2 <= b1)
+          or (b2 < b1 and a1 < a2)
+          or (b1 < b2 and a2 < a1))
+        # yapf: enable
+
+    def get_overlap_movement(self, lines: Iterable['Line']) -> float:
+        center = self.center
+        y_vals = [l.center - center for l in lines if self is not l and self.overlaps(l)]
+
+        if not y_vals:
+            return 0
+
+        return clamp(-fmean(y_vals), -1, 1) if any(y_vals) else 1
+
+    def overlap_amount(self, other: 'Line') -> float:
+        bottoms, tops = zip(self, other)
+        val = -max(bottoms) + min(tops)
+        return val if val >= 0 else 0
+
+
+# -------------------------------------------------------------------
 #   Boxes
 # -------------------------------------------------------------------
 
@@ -226,38 +291,36 @@ class Box:
     top: float = field(default=Side())
 
     @property
-    def width(self):
+    def width(self) -> float:
         return self.right - self.left
 
     @property
-    def height(self):
+    def height(self) -> float:
         return self.top - self.bottom
 
     @property
-    def center(self):
+    def center(self) -> Vector:
         return Vector((self.left + self.right, self.bottom + self.top)) / 2
 
-    def line_x(self):
-        return [self.left, self.right]
+    def line_x(self) -> Line:
+        return Line(self.left, self.right)
 
-    def line_y(self):
-        return [self.bottom, self.top]
+    def line_y(self) -> Line:
+        return Line(self.bottom, self.top)
 
-    def expand(self, x=0, y=0):
+    def expand(self, x=0, y=0) -> None:
         self.left -= x
         self.right += x
-
         self.bottom -= y
         self.top += y
 
-    def move(self, *, x=0, y=0):
+    def move(self, *, x=0, y=0) -> None:
         self.left += x
         self.right += x
-
         self.bottom += y
         self.top += y
 
-    def overlaps(self, other, tol=OVERLAP_TOL):
+    def overlaps(self, other: 'Box', tol=OVERLAP_TOL) -> bool:
         # yapf: disable
         return not (
           self.right - tol < other.left + tol
@@ -266,10 +329,10 @@ class Box:
           or self.bottom + tol > other.top - tol)
         # yapf: enable
 
-    def get_leftwards(self, boxes):
+    def get_leftwards(self, boxes: dict[Hashable, 'Box']) -> Hashable | None:
         return next((k for k, b in reversed(boxes.items()) if b.right <= self.left), None)
 
-    def get_rightwards(self, boxes):
+    def get_rightwards(self, boxes: dict[Hashable, 'Box']) -> Hashable | None:
         return next((k for k, b in boxes.items() if b.left >= self.right), None)
 
 
@@ -358,30 +421,6 @@ def get_box_rows(boxes):
         row.sort(key=lambda k: boxes[k].left)
 
     return rows
-
-
-def lines_overlap(line1, line2, tol=OVERLAP_TOL):
-    b1, a1 = line1
-    b2, a2 = line2
-
-    a1 -= tol
-    b1 += tol
-    a2 -= tol
-    b2 += tol
-
-    # yapf: disable
-    return (
-      (b1 <= a2 <= a1)
-      or (b1 <= b2 <= a1)
-      or (a2 < a1 and b1 < b2)
-      or (a1 < a2 and b2 < b1))
-    # yapf: enable
-
-
-def get_line_overlap(line1, line2):
-    bottoms, tops = zip(line1, line2)
-    val = -max(bottoms) + min(tops)
-    return val if val >= 0 else 0
 
 
 # -------------------------------------------------------------------
@@ -801,7 +840,11 @@ def get_new_columns(frame):
     return columns
 
 
-def get_aligned_columns(prev_col, curr_col, columns):
+def get_aligned_columns(
+  prev_col: Sequence[Node],
+  curr_col: Sequence[Node],
+  columns: Sequence[Sequence[Node]],
+) -> None:
     x = abs_loc(curr_col[0]).x
 
     for node in curr_col:
@@ -828,7 +871,7 @@ def get_aligned_columns(prev_col, curr_col, columns):
         yield from get_aligned_columns(col, columns[i + 1], columns)
 
 
-def merge_columns(columns):
+def merge_columns(columns: list[Iterable[Node]]) -> None:
     for node in dict.fromkeys(chain(*columns)):
         components = [c for c in columns if node in c]
 
@@ -838,36 +881,26 @@ def merge_columns(columns):
         columns.append(list(set(chain(*components))))
 
 
-def line_overlap_movement(node, lines):
-    l1 = lines[node]
-    center = sum(l1) / 2
-
-    y = [sum(l2) / 2 - center for n, l2 in lines.items() if node != n and lines_overlap(l1, l2)]
-
-    if not y:
-        return 0
-
-    return clamp(-fmean(y), -1, 1) if any(y) else 1
-
-
-def disperse_nodes_y(col):
+def disperse_nodes_y(col: Iterable[Node]) -> None:
     margin = MARGIN.y / 2
-    lines = {#
-      n: [get_bottom(n) - margin, get_top(n) + margin]
-      for n in col if n.bl_idname != 'NodeReroute'}
 
-    pairs = [(lines[n1], lines[n2]) for n1, n2 in combinations(lines, 2)]
-    while any(lines_overlap(l1, l2) for l1, l2 in pairs):
+    lines = {n: Line(get_bottom(n), get_top(n)) for n in col if n.bl_idname != 'NodeReroute'}
+    values = lines.values()
+
+    for line in values:
+        line.expand(margin)
+
+    pairs = tuple(combinations(values, 2))
+    while any(l1.overlaps(l2) for l1, l2 in pairs):
         for node, line in lines.items():
-            movement = line_overlap_movement(node, lines)
-            line[0] += movement
-            line[1] += movement
+            movement = line.get_overlap_movement(values)
+            line.move(movement)
 
     for node, line in lines.items():
-        move_to(node, y=corrected_y(node, line[1] - margin))
+        move_to(node, y=corrected_y(node, line.b - margin))
 
 
-def contract_nodes_y(col):
+def contract_nodes_y(col: Iterable[Node]) -> None:
     for node1, node2 in pairwise(col):
         dist = get_bottom(node1) - get_top(node2)
         if dist > MARGIN.y:
@@ -955,7 +988,7 @@ def arrange_principled():
 # -------------------------------------------------------------------
 
 
-def get_linked_y_locs(node):
+def get_linked_y_locs(node: Node) -> list[tuple[Node, float]]:
     y_locs = []
     is_reroute = node.bl_idname == 'NodeReroute'
 
@@ -975,7 +1008,7 @@ def get_linked_y_locs(node):
     return y_locs
 
 
-def move_frames_to_linked_y():
+def move_frames_to_linked_y() -> None:
     for frame, children in Maps.used_children.items():
         if not frame:
             continue
@@ -991,7 +1024,7 @@ def move_frames_to_linked_y():
             move(node, y=movement)
 
 
-def get_ideal_y(node, divided_rows, line_y):
+def get_ideal_y(node: Node, divided_rows: Iterable[Sequence[Node]], line_y: Line) -> float:
     y = abs_loc(node).y
     parent = node.parent
 
@@ -1009,10 +1042,10 @@ def get_ideal_y(node, divided_rows, line_y):
         return fmean(y_locs)
 
     height = y - get_bottom(node)
-    return clamp(fmean(y_locs), line_y[0] + height, line_y[1])
+    return clamp(fmean(y_locs), line_y.a + height, line_y.b)
 
 
-def get_overlapping_lines(lines):
+def get_overlapping_lines(lines: dict[Node, Line]) -> dict[Node, Node]:
     keys = tuple(lines)
     margin = MARGIN.y / 2
 
@@ -1020,39 +1053,43 @@ def get_overlapping_lines(lines):
     for pair in combinations(lines, 2):
         most_moved, other = sorted(pair, key=keys.index)
 
-        if lines_overlap(lines[most_moved], lines[other]):
+        if lines[most_moved].overlaps(lines[other]):
             real_top = abs_loc(most_moved).y + margin
 
-            if lines[most_moved][1] != real_top:
+            if lines[most_moved].b != real_top:
                 overlapping[most_moved] = other
 
             real_bottom = get_bottom(most_moved) - margin
-            if not lines_overlap((real_bottom, real_top), lines[other]):
+            if not Line(real_bottom, real_top).overlaps(lines[other]):
                 continue
 
-            if lines[other][1] != abs_loc(other).y + margin:
+            if lines[other].b != abs_loc(other).y + margin:
                 overlapping[other] = most_moved
 
     return overlapping
 
 
-def partial_disperse_nodes_y(ideal_y_locs):
+def partial_disperse_nodes_y(ideal_y_locs: dict[Node, float]) -> None:
     margin = MARGIN.y / 2
 
     lines = {}
     most_moved = lambda ny: abs(abs_loc(ny[0]).y - ny[1])
     for node, y in sorted(ideal_y_locs.items(), key=most_moved, reverse=True):
-        lines[node] = [get_bottom(node, y) - margin, get_top(node, y) + margin]
+        line = Line(get_bottom(node, y), get_top(node, y))
+        line.expand(margin)
+        lines[node] = line
 
     while overlapping := get_overlapping_lines(lines):
         for node in overlapping:
-            lines[node] = [get_bottom(node) - margin, abs_loc(node).y + margin]
+            line = Line(get_bottom(node), abs_loc(node).y)
+            line.expand(margin)
+            lines[node] = line
 
     for node, line in lines.items():
-        move_to(node, y=corrected_y(node, line[1] - margin))
+        move_to(node, y=corrected_y(node, line.b - margin))
 
 
-def move_to_linked_y(columns):
+def move_to_linked_y(columns: Sequence[Sequence[Node]]) -> None:
     nodes = tuple(chain(*columns))
     reroutes = {n for n in nodes if n.bl_idname == 'NodeReroute'}
 
@@ -1088,44 +1125,44 @@ def move_to_linked_y(columns):
 # -------------------------------------------------------------------
 
 
-def get_merged_lines(lines) -> list[list[float]]:
+def get_merged_lines(lines: list[Line]) -> list[Line]:
     if not lines:
         return []
 
-    lines.sort()
+    lines.sort(key=lambda l: l.a)
     merged = []
-    for a, b in lines:
-        if merged and merged[-1][1] >= a:
-            merged[-1][1] = max(merged[-1][1], b)
+    for line in lines:
+        if merged and merged[-1].b >= line.a:
+            merged[-1].b = max(merged[-1].b, line.b)
         else:
-            merged.append([a, b])
+            merged.append(line)
 
     return merged
 
 
-def get_closest_gap(box, lines_y) -> list[float]:
+def get_closest_gap(box: Box, lines_y: Sequence[Line]) -> Line:
     if not lines_y:
         return None
 
     center = box.center.y
     height = box.height
 
-    vals = chain([lines_y[0][0] - INF_BEYOND], chain(*lines_y), [lines_y[-1][1] + INF_BEYOND])
+    vals = chain([lines_y[0].a - INF_BEYOND], chain(*lines_y), [lines_y[-1].b + INF_BEYOND])
     gaps = [
       l for l in zip(vals, vals) if (d := l[1] - l[0]) >= height or abs(d - height) <= OVERLAP_TOL]
 
     closest_y = min(chain(*gaps), key=lambda y: abs(y - center))
-    return next(l for l in gaps if closest_y in l)
+    return next(Line(*l) for l in gaps if closest_y in l)
 
 
 @dataclass(slots=True)
 class Disperser:
     key: Hashable
     box: Box
-    overlappers_x: list = field(default_factory=list)
-    frozen_by: 'Disperser' = field(default=None)
-    prev_movement: float = field(default=None)
-    switched_dir_before: bool = field(default=False)
+    overlappers_x: list['Disperser'] = field(default_factory=list)
+    frozen_by: 'Disperser' = None
+    prev_movement: float = None
+    switched_dir_before: bool = False
 
     def extend_overlappers_x(self, items: Iterable['Disperser']) -> None:
         line = self.box.line_x()
@@ -1134,7 +1171,7 @@ class Disperser:
                 continue
 
             if self not in item.overlappers_x:
-                if not lines_overlap(line, item.box.line_x()) or is_parented(self, item):
+                if not line.overlaps(item.box.line_x()) or is_parented(self, item):
                     continue
 
             self.overlappers_x.append(item)
@@ -1165,14 +1202,19 @@ class Disperser:
 
         return (movement, overlappers)
 
-    def get_lines_y(self) -> list[list[float]]:
+    def get_lines_y(self) -> list[Line]:
         keys = [k for k in self.overlappers_x if not k.overlappers_x]
         if keys:
             keys.extend([k for k in self.overlappers_x if k.frozen_by])
 
         return get_merged_lines([k.box.line_y() for k in keys])
 
-    def get_better_movement(self, movement, lines_y=None, prevent_overshoot=False) -> float:
+    def get_better_movement(
+      self,
+      movement: float,
+      lines_y: Sequence[Line] | None = None,
+      prevent_overshoot: bool = False,
+    ) -> float:
         if lines_y is None:
             lines_y = self.get_lines_y()
 
@@ -1185,12 +1227,12 @@ class Disperser:
         center = box.center.y
         closest_y = min(closest_gap, key=lambda y: abs(y - center))
 
-        switch_dir = movement < 0 if closest_gap[0] == closest_y else movement > 0
+        switch_dir = movement < 0 if closest_gap.a == closest_y else movement > 0
         if switch_dir:
             movement *= -1
 
         if prevent_overshoot:
-            diff = box.height - get_line_overlap(box.line_y(), closest_gap)
+            diff = box.height - box.line_y().overlap_amount(closest_gap)
             if abs(movement) > diff:
                 movement = -diff if movement < 0 else diff
 
@@ -1215,9 +1257,9 @@ def freeze_movables(competing: MutableSequence[Disperser], movement: float) -> N
     competing.remove(favoured)
 
     if gap := get_closest_gap(favoured.box, favoured.get_lines_y()):
-        gap_overlaps = [(k, get_line_overlap(k.box.line_y(), gap)) for k in competing]
+        gap_overlaps = [(k, k.box.line_y().overlap_amount(gap)) for k in competing]
         preventer, overlap = max(gap_overlaps, key=itemgetter(1))
-        if (gap[1] - gap[0]) - overlap < favoured.box.height:
+        if gap.length - overlap < favoured.box.height:
             preventer.frozen_by = None
             favoured.frozen_by = preventer
 
@@ -1226,7 +1268,10 @@ def freeze_movables(competing: MutableSequence[Disperser], movement: float) -> N
             item.frozen_by = favoured
 
 
-def dispersed(movable_boxes, immovable_boxes) -> dict[Hashable, float]:
+def dispersed(
+  movable_boxes: dict[Hashable, Box],
+  immovable_boxes: dict[Hashable, Box],
+) -> dict[Hashable, float]:
     movables = [Disperser(*k) for k in movable_boxes.items()]
     immovables = [Disperser(*k) for k in immovable_boxes.items()]
 
@@ -1358,8 +1403,9 @@ def disperse_lin_chain_box(sub_boxes, col_boxes, prev_lin_chain) -> None:
     raw_lines_y = [b.line_y() for b in col_boxes.values()]
     if prev_lin_chain:
         prev_lin_chain_box = get_box(prev_lin_chain)
-        if lines_overlap(lin_chain_box.line_x(), prev_lin_chain_box.line_x()):
-            raw_lines_y.append([prev_lin_chain_box.bottom, max(chain(*raw_lines_y)) + INF_BEYOND])
+        if lin_chain_box.line_x().overlaps(prev_lin_chain_box.line_x()):
+            endless_top = max(chain(*raw_lines_y)) + INF_BEYOND
+            raw_lines_y.append(Line(prev_lin_chain_box.bottom, endless_top))
 
     lines_y = get_merged_lines(raw_lines_y)
     while any(a.overlaps(b) for a in sub_boxes for b in col_boxes.values()):
@@ -1475,16 +1521,17 @@ def align_highest_nodes(columns):
 # -------------------------------------------------------------------
 
 
-def saves_space(box1, box2, boxes):
+def saves_space(box1: Box, box2: Box, boxes: dict[Hashable, Box]) -> bool:
 
     # If the height of the boxes within the overlap range is >=
     # `COMPACT_HEIGHT` (around three math nodes) + margin * 2, then compact
     # the frame. (This is a heuristic meant to approximate how much space
     # would be saved after dispersing the frames.)
 
+    line1 = box1.line_y()
     center2 = box2.center.y
-    upper_overlap = get_line_overlap(box1.line_y(), (center2, box2.top))
-    lower_overlap = get_line_overlap(box1.line_y(), (box2.bottom, center2))
+    upper_overlap = line1.overlap_amount(Line(center2, box2.top))
+    lower_overlap = line1.overlap_amount(Line(box2.bottom, center2))
 
     height = 0
     if upper_overlap > lower_overlap:
@@ -1494,7 +1541,7 @@ def saves_space(box1, box2, boxes):
 
     y_locs = []
     for key3, box3 in boxes.items():
-        if lines_overlap((box1.right, box2.left), box3.line_x()) and condition(box3):
+        if Line(box2.left, box1.right).overlaps(box3.line_x()) and condition(box3):
             if isinstance(key3, NodeFrame):
                 height += box3.height
             else:
@@ -1752,7 +1799,7 @@ def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
             if frame2 in seen or frame1 == frame2 or frame1.parent != frame2.parent:
                 continue
 
-            if not lines_overlap(box1.line_y(), box2.line_y()):
+            if not box1.line_y().overlaps(box2.line_y()):
                 continue
 
             height1 = box1.height
@@ -1787,7 +1834,10 @@ def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
     return rows
 
 
-def get_overlappers_x(real_boxes, boxes) -> defaultdict[Hashable, list[Hashable]]:
+def get_overlappers_x(
+  real_boxes: dict[Hashable, Box],
+  boxes: dict[Hashable, Box],
+) -> defaultdict[Hashable, list[Hashable]]:
     seen = set()
     overlappers_x = defaultdict(list)
     for a, box1 in real_boxes.items():
@@ -1795,7 +1845,7 @@ def get_overlappers_x(real_boxes, boxes) -> defaultdict[Hashable, list[Hashable]
             if {a, b} in seen or a == b:
                 continue
 
-            if lines_overlap(box1.line_x(), box2.line_x()) and not is_parented(a, b):
+            if box1.line_x().overlaps(box2.line_x()) and not is_parented(a, b):
                 overlappers_x[a].append(b)
                 if b in real_boxes:
                     overlappers_x[b].append(a)
@@ -1806,7 +1856,7 @@ def get_overlappers_x(real_boxes, boxes) -> defaultdict[Hashable, list[Hashable]
 
 
 def will_break_box_row(frame, row, boxes, line_x) -> bool:
-    row = [k for k in row if k == frame or not lines_overlap(line_x, boxes[k].line_x())]
+    row = [k for k in row if k == frame or not line_x.overlaps(boxes[k].line_x())]
     i = row.index(frame)
     leftwards = row[(i - MIN_ADJ_COLS):(i)]
     rightwards = row[(i + 1):(i + MIN_ADJ_COLS + 1)]
