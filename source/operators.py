@@ -29,6 +29,7 @@ EPS = 65
 TARGET_NODE_TYPES = {'ShaderNodeBsdfPrincipled', 'ShaderNodeDisplacement'}
 DISPERSE_MULT = 4
 INF_BEYOND = 10**10
+ITER_LIMIT_MULT = 1000
 COMPACT_HEIGHT = 450
 MIN_ADJ_COLS = 2
 
@@ -1283,6 +1284,8 @@ def dispersed(
 
     old_tops = [(k, k.box.top) for k in movables]
 
+    i = 0
+    iter_limit = len(movables) * ITER_LIMIT_MULT
     while any(k.has_overlaps() for k in movables):
         movements = []
         for item in movables:
@@ -1311,6 +1314,10 @@ def dispersed(
         for item, movement in movements:
             item.box.move(y=movement)
             item.prev_movement = movement
+
+        i += 1
+        if i > iter_limit:  # This should never happen
+            break
 
     return {k.key: t - k.box.top for k, t in old_tops}
 
