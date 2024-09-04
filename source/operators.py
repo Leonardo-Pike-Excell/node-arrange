@@ -1489,7 +1489,7 @@ def align_linear_chains(frame) -> None:
 # -------------------------------------------------------------------
 
 
-def get_alignable_ancestors(trail):
+def get_alignable_ancestors(trail: list[Node]) -> list[Node]:
     predecessors = [n for n in get_predecessors(trail[-1]) if n.parent == trail[-1].parent]
     try:
         pred = max(predecessors, key=get_top)
@@ -1498,7 +1498,7 @@ def get_alignable_ancestors(trail):
 
     col = next(c for c in Maps.frame_columns[pred.parent] if pred in c)
 
-    if col[0] != pred or get_top(pred) < get_top(trail[-1]):
+    if col[0] != pred:
         return trail
 
     max_right = max(map(get_right, col))
@@ -1509,20 +1509,34 @@ def get_alignable_ancestors(trail):
     return get_alignable_ancestors(trail)
 
 
-def align_highest_nodes(columns):
-    seen = 0
+def align_highest_nodes(columns: Sequence[Sequence[Node]]) -> None:
+    prev_furthest_idx = 0
     for i, col in enumerate(columns):
-        if i < seen:
+        if i < prev_furthest_idx:
             continue
 
         trail = [n for n in get_alignable_ancestors([col[0]]) if n.bl_idname != 'NodeReroute']
-        seen = i + len(trail)
+        prev_furthest_idx = i + len(trail)
 
         if len({get_top(n) for n in trail}) <= 1:
             continue
 
-        target_y = get_top(trail[-1])
-        for node in trail[:-1]:
+        node_map = {}
+        for node, col in zip(trail, columns[i:]):
+            below = next((n for n in col if n != node and n.bl_idname != 'NodeReroute'), None)
+            node_map[node] = (get_top(node), below)
+
+        target_y = max(map(get_top, trail))
+
+        for node, (top, below) in node_map.items():
+            if not below or top == target_y or int(get_bottom(node) - get_top(below)) != MARGIN.y:
+                continue
+
+            if all(y == top or not b for y, b in node_map.values()):
+                target_y = top
+                break
+
+        for node in trail:
             move_to(node, y=corrected_y(node, target_y))
 
 
