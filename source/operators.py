@@ -940,7 +940,7 @@ def get_descendants_simple(nodes: Iterable[Node]) -> Iterator[Node]:
             yield from get_descendants_simple(Maps.links[output])
 
 
-def arrange_principled():
+def arrange_principled() -> None:
     for col in Maps.universal_columns:
         if target_nodes := [n for n in col if n.bl_idname in TARGET_NODE_TYPES]:
             break
@@ -952,17 +952,17 @@ def arrange_principled():
     if not all_img_nodes:
         return
 
-    groups = defaultdict(list)
+    grouped_by_parent = defaultdict(list)
     for node in all_img_nodes:
-        groups[node.parent].append(node)
+        grouped_by_parent[node.parent].append(node)
 
-    img_nodes = max(groups.values(), key=len)
-    leftmost = min(img_nodes, key=lambda n: abs_loc(n).x)
+    img_nodes = max(grouped_by_parent.values(), key=len)
+    x_loc = lambda n: abs_loc(n).x
+    leftmost = min(img_nodes, key=x_loc)
     leftmost_row = tuple(get_descendants_simple([leftmost]))
 
     for img_node in img_nodes:
-        row = tuple(get_descendants_simple([img_node]))
-
+        row = get_descendants_simple([img_node])
         for node1, node2 in zip(leftmost_row, row):
             movement = abs_loc(node1).x - abs_loc(node2).x
 
@@ -980,8 +980,14 @@ def arrange_principled():
             to_move = [n for n in chain(*Maps.universal_columns) if get_right(n) <= right]
             move_nodes(to_move + [node2], x=get_right(ranked[1]) - right)
 
-        if any(n.bl_idname == 'ShaderNodeDisplacement' for n in row):
-            move(img_node, y=-1)
+    grouped_by_x_loc = [tuple(g) for k, g in groupby(sorted(img_nodes, key=x_loc), x_loc)]
+    for group in grouped_by_x_loc:
+        if len(group) == 1:
+            continue
+
+        highest_top = get_top(group[0])
+        for node, vec in get_arranged([group]).items():
+            move_to(node, y=vec.y + highest_top)
 
     if frame := leftmost.parent:
         regenerate_columns(frame)
