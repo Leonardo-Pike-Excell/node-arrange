@@ -933,7 +933,7 @@ def regenerate_columns(frame):
 # -------------------------------------------------------------------
 
 
-def get_descendants_simple(nodes):
+def get_descendants_simple(nodes: Iterable[Node]) -> Iterator[Node]:
     for node in nodes:
         yield node
         for output in node.outputs:
@@ -1164,8 +1164,8 @@ class Disperser:
     key: Hashable
     box: Box
     overlappers_x: list['Disperser'] = field(default_factory=list)
-    frozen_by: 'Disperser' = None
-    prev_movement: float = None
+    frozen_by: 'Disperser | None' = None
+    prev_movement: float | None = None
     switched_dir_before: bool = False
 
     def extend_overlappers_x(self, items: Iterable['Disperser']) -> None:
@@ -1328,7 +1328,7 @@ def dispersed(
 # -------------------------------------------------------------------
 
 
-def get_singly_linked_ancestors(node) -> Iterator[Node]:
+def get_singly_linked_ancestors(node: Node) -> Iterator[Node]:
     successors = get_successors(node)
 
     if len(successors) > 1:
@@ -1357,7 +1357,7 @@ def get_singly_linked_ancestors(node) -> Iterator[Node]:
     yield from get_singly_linked_ancestors(pred)
 
 
-def get_linear_chains(columns) -> list[list[Node]]:
+def get_linear_chains(columns: Sequence[Sequence[Node]]) -> list[list[Node]]:
     linear_chains = []
     for col in columns[:-1]:
         for node in col:
@@ -1375,7 +1375,11 @@ def get_linear_chains(columns) -> list[list[Node]]:
     return linear_chains
 
 
-def get_unfree_space(lin_chain, prev_lin_chain, columns) -> tuple[float, list[Node]]:
+def get_unfree_space(
+  lin_chain: Sequence[Node],
+  prev_lin_chain: Iterable[Node],
+  columns: Sequence[Sequence[Node]],
+) -> tuple[float, list[Node]]:
     i = next(i for i, c in enumerate(columns) if lin_chain[-1] in c)
     below = []
     tops = []
@@ -1428,7 +1432,7 @@ def disperse_lin_chain_box(sub_boxes, col_boxes, prev_lin_chain) -> None:
             box.move(y=movement)
 
 
-def align_lin_chain(lin_chain, linear_chains) -> None:
+def align_lin_chain(lin_chain: Sequence[Node], linear_chains: Sequence[Sequence[Node]]) -> None:
     sockets = [Maps.sockets[s] for s in chain(lin_chain[0].inputs, lin_chain[-1].outputs)]
     linked = map(get_real_sockets, chain(*sockets))
     ideal_y = fmean(map(get_socket_y, chain(*linked)))
