@@ -1411,7 +1411,11 @@ def get_unfree_space(
     return (movement, below)
 
 
-def disperse_lin_chain_box(sub_boxes, col_boxes, prev_lin_chain) -> None:
+def disperse_lin_chain_box(
+  sub_boxes: Sequence[Box],
+  col_boxes: dict[tuple[Node, ...], Box],
+  limit: float,
+) -> None:
     if not col_boxes:
         return
 
@@ -1421,11 +1425,8 @@ def disperse_lin_chain_box(sub_boxes, col_boxes, prev_lin_chain) -> None:
     item.overlappers_x.extend([Disperser(*k) for k in col_boxes.items()])
 
     raw_lines_y = [b.line_y for b in col_boxes.values()]
-    if prev_lin_chain:
-        prev_lin_chain_box = get_box(prev_lin_chain)
-        if lin_chain_box.line_x.overlaps(prev_lin_chain_box.line_x):
-            endless_top = max(chain(*raw_lines_y)) + INF_BEYOND
-            raw_lines_y.append(Line(prev_lin_chain_box.bottom, endless_top))
+    if limit < max([l.b for l in raw_lines_y]):
+        raw_lines_y.append(Line(limit, max(chain(*raw_lines_y)) + INF_BEYOND))
 
     lines_y = get_merged_lines(raw_lines_y)
     while any(a.overlaps(b) for a in sub_boxes for b in col_boxes.values()):
@@ -1460,8 +1461,8 @@ def align_lin_chain(lin_chain: Sequence[Node], linear_chains: Sequence[Sequence[
         if new_col := [n for n in col if n not in unfixed]:
             columns.append(new_col)
 
-    prev_lin_chain = linear_chains[i - 1] if i != 0 else None
-    disperse_lin_chain_box(sub_boxes, get_col_boxes(columns), prev_lin_chain)
+    limit = max(map(get_top, lin_chain))
+    disperse_lin_chain_box(sub_boxes, get_col_boxes(columns), limit)
 
     y = sub_boxes[0].top - MARGIN.y / 2
     for node in lin_chain:
