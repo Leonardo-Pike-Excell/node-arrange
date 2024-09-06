@@ -7,9 +7,10 @@ from functools import cmp_to_key
 from itertools import chain, combinations, groupby, pairwise
 from operator import gt, itemgetter, lt
 from statistics import fmean
+from typing import Any
 
 import bpy
-from bpy.types import Node, NodeFrame, Operator
+from bpy.types import Node, NodeFrame, NodeSocket, Operator
 from bl_math import clamp
 from mathutils import Vector
 from mathutils.geometry import interpolate_bezier
@@ -38,13 +39,13 @@ MIN_ADJ_COLS = 2
 # -------------------------------------------------------------------
 
 
-def get_parents(node):
+def get_parents(node: Node) -> Iterator[NodeFrame]:
     if parent := node.parent:
         yield parent
         yield from get_parents(parent)
 
 
-def get_nested_children(frame):
+def get_nested_children(frame: NodeFrame | None) -> Iterator[Node]:
     try:
         yield from Maps.used_children[frame]
     except KeyError:
@@ -55,7 +56,7 @@ def get_nested_children(frame):
             yield from get_nested_children(node)
 
 
-def is_parented(a, b):
+def is_parented(a: Any, b: Any) -> bool:
     if not isinstance(a, NodeFrame) or not isinstance(b, NodeFrame):
         return False
 
@@ -67,7 +68,7 @@ def is_parented(a, b):
 # -------------------------------------------------------------------
 
 
-def get_predecessors(*nodes):
+def get_predecessors(*nodes: Node) -> list[Node]:
     predecessors = []
     for node in nodes:
         predecessors.extend(chain(*[Maps.links[i] for i in node.inputs]))
@@ -75,7 +76,7 @@ def get_predecessors(*nodes):
     return predecessors
 
 
-def get_successors(*nodes):
+def get_successors(*nodes: Node) -> list[Node]:
     successors = []
     for node in nodes:
         successors.extend(chain(*[Maps.links[o] for o in node.outputs]))
@@ -83,7 +84,7 @@ def get_successors(*nodes):
     return successors
 
 
-def get_ancestors(nodes, seen=None):
+def get_ancestors(nodes: Iterable[Node], seen: set[Node] | None = None) -> Iterator[Node]:
     if seen is None:
         seen = set()
 
@@ -98,7 +99,7 @@ def get_ancestors(nodes, seen=None):
             yield from get_ancestors(Maps.links[input], seen)
 
 
-def get_descendants(nodes, seen=None):
+def get_descendants(nodes: Iterable[Node], seen: set[Node] | None = None) -> Iterator[Node]:
     if seen is None:
         seen = set()
 
@@ -126,7 +127,7 @@ def get_descendants(nodes, seen=None):
         yield from get_descendants(queue, seen)
 
 
-def get_real_sockets(socket):
+def get_real_sockets(socket: NodeSocket) -> Iterator[NodeSocket]:
     node = socket.node
     if node.bl_idname == 'NodeReroute':
         new_socket = node.inputs[0] if socket.is_output else node.outputs[0]
@@ -141,7 +142,7 @@ def get_real_sockets(socket):
 # -------------------------------------------------------------------
 
 
-def abs_loc(node):
+def abs_loc(node: Node) -> Vector:
     loc = node.location.copy()
     for parent in get_parents(node):
         loc += parent.location
@@ -149,22 +150,22 @@ def abs_loc(node):
     return loc
 
 
-def dimensions(node):
+def dimensions(node: Node) -> Vector:
     return node.dimensions / SCALE_FAC
 
 
-def get_right(node):
+def get_right(node: Node) -> float:
     return abs_loc(node).x + dimensions(node).x
 
 
-def get_top(node, y_loc=None):
+def get_top(node: Node, y_loc: float | None = None) -> float:
     if y_loc is None:
         y_loc = abs_loc(node).y
 
     return (y_loc + dimensions(node).y / 2) - HIDE_OFFSET if node.hide else y_loc
 
 
-def get_bottom(node, y_loc=None):
+def get_bottom(node: Node, y_loc: float | None = None) -> float:
     if y_loc is None:
         y_loc = abs_loc(node).y
 
@@ -173,7 +174,7 @@ def get_bottom(node, y_loc=None):
     return bottom + dim_y / 2 - HIDE_OFFSET if node.hide else bottom
 
 
-def get_hidden_socket_y(socket):
+def get_hidden_socket_y(socket: NodeSocket) -> float:
     node = socket.node
     x, y = abs_loc(node)
 
@@ -193,7 +194,7 @@ def get_hidden_socket_y(socket):
     return points[sockets.index(socket)].y
 
 
-def get_input_y(input, accurate=True):
+def get_input_y(input: NodeSocket, accurate: bool = True) -> float:
     node = input.node
 
     if not accurate or node.bl_idname == 'NodeReroute':
@@ -224,7 +225,7 @@ def get_input_y(input, accurate=True):
     return y + idx * SOCKET_SPACING_MULTIPLIER
 
 
-def get_output_y(output, accurate=True):
+def get_output_y(output: NodeSocket, accurate: bool = True) -> float:
     node = output.node
 
     if not accurate or node.bl_idname == 'NodeReroute':
@@ -238,11 +239,11 @@ def get_output_y(output, accurate=True):
     return y - outputs.index(output) * SOCKET_SPACING_MULTIPLIER
 
 
-def get_socket_y(socket, accurate=True):
+def get_socket_y(socket: NodeSocket, accurate: bool = True) -> float:
     return get_output_y(socket, accurate) if socket.is_output else get_input_y(socket, accurate)
 
 
-def corrected_y(node, target_y):
+def corrected_y(node: Node, target_y: float) -> float:
     y = abs_loc(node).y
     return target_y + (y - get_top(node)) if y != target_y else y
 
@@ -354,13 +355,13 @@ class Box:
     def line_y(self) -> Line:
         return Line(self.bottom, self.top)
 
-    def expand(self, x=0, y=0) -> None:
+    def expand(self, x: float = 0, y: float = 0) -> None:
         self.left -= x
         self.right += x
         self.bottom -= y
         self.top += y
 
-    def move(self, *, x=0, y=0) -> None:
+    def move(self, *, x: float = 0, y: float = 0) -> None:
         self.left += x
         self.right += x
         self.bottom += y
@@ -475,7 +476,7 @@ def get_box_rows(boxes: dict[Hashable, Box]) -> list[list[Hashable]]:
 # -------------------------------------------------------------------
 
 
-def move(node, *, x=0, y=0):
+def move(node: Node, *, x: float = 0, y: float = 0) -> None:
     if x == 0 and y == 0:
         return
 
@@ -497,7 +498,7 @@ def move(node, *, x=0, y=0):
         n.select = True
 
 
-def move_to(node, *, x=None, y=None):
+def move_to(node: Node, *, x: float | None = None, y: float | None = None) -> None:
     loc = abs_loc(node)
     if x is not None and y is None:
         move(node, x=x - loc.x)
@@ -507,7 +508,7 @@ def move_to(node, *, x=None, y=None):
         move(node, x=x - loc.x, y=y - loc.y)
 
 
-def move_nodes(nodes, *, x=0, y=0):
+def move_nodes(nodes: Iterable[Node], *, x: float = 0, y: float = 0) -> None:
     for node in {n.parent or n for n in nodes}:
         if node.bl_idname != 'NodeFrame' or not node.parent:
             move(node, x=x, y=y)
