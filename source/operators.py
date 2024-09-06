@@ -4,7 +4,7 @@ from collections.abc import Hashable, Iterable, Iterator, MutableSequence, Seque
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from functools import cmp_to_key
-from itertools import chain, combinations, groupby, pairwise
+from itertools import chain, combinations, pairwise
 from operator import gt, itemgetter, lt
 from statistics import fmean
 from typing import Any
@@ -934,6 +934,13 @@ def regenerate_columns(frame):
 # -------------------------------------------------------------------
 
 
+def group_by(iterable, *, key):
+    groups = defaultdict(list)
+    for item in iterable:
+        groups[key(item)].append(item)
+    return {tuple(g): k for k, g in groups.items()}
+
+
 def get_descendants_simple(nodes: Iterable[Node]) -> Iterator[Node]:
     for node in nodes:
         yield node
@@ -953,11 +960,8 @@ def arrange_principled() -> None:
     if not all_img_nodes:
         return
 
-    grouped_by_parent = defaultdict(list)
-    for node in all_img_nodes:
-        grouped_by_parent[node.parent].append(node)
-
-    img_nodes = max(grouped_by_parent.values(), key=len)
+    grouped_by_parent = group_by(all_img_nodes, key=lambda n: n.parent)
+    img_nodes = max(grouped_by_parent, key=len)
     x_loc = lambda n: abs_loc(n).x
     leftmost = min(img_nodes, key=x_loc)
     leftmost_row = tuple(get_descendants_simple([leftmost]))
@@ -981,8 +985,7 @@ def arrange_principled() -> None:
             to_move = [n for n in chain(*Maps.universal_columns) if get_right(n) <= right]
             move_nodes(to_move + [node2], x=get_right(ranked[1]) - right)
 
-    grouped_by_x_loc = [tuple(g) for k, g in groupby(sorted(img_nodes, key=x_loc), x_loc)]
-    for group in grouped_by_x_loc:
+    for group in group_by(img_nodes, key=x_loc):
         if len(group) == 1:
             continue
 
@@ -1105,7 +1108,7 @@ def move_to_linked_y(columns: Sequence[Sequence[Node]]) -> None:
     reroutes = {n for n in nodes if n.bl_idname == 'NodeReroute'}
 
     divided_rows = []
-    for key, row in groupby(sorted(nodes, key=get_top), get_top):
+    for row in group_by(nodes, key=get_top):
         row = [n for n in row if n not in reroutes]
         row_len = len(row)
 
