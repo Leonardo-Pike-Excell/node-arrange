@@ -1186,7 +1186,7 @@ class Disperser:
                 continue
 
             if self not in item.overlappers_x:
-                if not line.overlaps(item.box.line_x) or is_parented(self, item):
+                if not line.overlaps(item.box.line_x) or is_parented(self.key, item.key):
                     continue
 
             self.overlappers_x.append(item)
