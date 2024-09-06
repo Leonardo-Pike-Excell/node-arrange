@@ -1283,18 +1283,16 @@ def freeze_movables(competing: MutableSequence[Disperser], movement: float) -> N
             item.frozen_by = favoured
 
 
-def dispersed(
+def disperse_boxes(
   movable_boxes: dict[Hashable, Box],
   immovable_boxes: dict[Hashable, Box],
-) -> dict[Hashable, float]:
+) -> None:
     movables = [Disperser(*k) for k in movable_boxes.items()]
     immovables = [Disperser(*k) for k in immovable_boxes.items()]
 
     items = movables + immovables
     for item in movables:
         item.extend_overlappers_x(items)
-
-    old_tops = [(k, k.box.top) for k in movables]
 
     i = 0
     iter_limit = len(movables) * ITER_LIMIT_MULT
@@ -1331,7 +1329,19 @@ def dispersed(
         if i > iter_limit:  # This should never happen
             break
 
-    return {k.key: t - k.box.top for k, t in old_tops}
+
+def disperse_nodes(
+  movable_boxes: dict[Node | tuple[Node, ...], Box],
+  immovable_boxes: dict[Hashable, Box],
+) -> None:
+    old_tops = {k: b.top for k, b in movable_boxes.items()}
+    disperse_boxes(movable_boxes, immovable_boxes)
+    for key, box in movable_boxes.items():
+        if isinstance(key, Node):
+            move(key, y=-old_tops[key] + box.top)
+        else:
+            for node in key:
+                move(node, y=-old_tops[key] + box.top)
 
 
 # -------------------------------------------------------------------
@@ -1405,10 +1415,7 @@ def align_lin_chain(lin_chain: Sequence[Node]) -> None:
         box.expand(y=MARGIN.y / 2)
         sub_boxes[node] = box
 
-    movements = dispersed(lower_col_boxes, sub_boxes)
-    for subcol, movement in movements.items():
-        for node in subcol:
-            move(node, y=-movement)
+    disperse_nodes(lower_col_boxes, sub_boxes)
 
 
 def align_linear_chains(frame) -> None:
@@ -1749,12 +1756,6 @@ def get_nested_boxes(frame_boxes):
         yield from get_nested_boxes(nested_frame_boxes)
 
 
-def disperse_frames(frame_boxes, col_boxes) -> None:
-    movements = dispersed(frame_boxes, col_boxes)
-    for frame, movement in movements.items():
-        move(frame, y=-movement)
-
-
 def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
     frame_boxes = dict(reversed(frame_boxes.items()))
 
@@ -1858,7 +1859,7 @@ def get_levelled_frames(row_items, boxes, movement) -> set[NodeFrame]:
 def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
     nested_boxes = tuple(get_nested_boxes(frame_boxes))
     for nested_frame_boxes, nested_col_boxes in reversed(nested_boxes):
-        disperse_frames(nested_frame_boxes, nested_col_boxes)
+        disperse_nodes(nested_frame_boxes, nested_col_boxes)
         parent = next(iter(nested_frame_boxes)).parent
         frame_boxes[parent] = get_frame_box(parent)
 
@@ -1872,11 +1873,13 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
         if leftwards := box1.get_leftwards(boxes):
             nearest[frame1].add(leftwards)
 
-    old_values = {f: (b.top, replace(b)) for f, b in frame_boxes.items()}
+    before_centered = {f: (b.top, replace(b)) for f, b in frame_boxes.items()}
     frame_rows = center_frames_y(frame_boxes, nearest)
 
     dispersed_boxes = {f: replace(b) for f, b in frame_boxes.items()}
-    movements = dispersed(dispersed_boxes, col_boxes)
+    old_tops = {f: b.top for f, b in dispersed_boxes.items()}
+    disperse_boxes(dispersed_boxes, col_boxes)
+    movements = {f: old_tops[f] - b.top for f, b in dispersed_boxes.items()}
     dispersed_boxes.update(col_boxes)
 
     overlappers_x = get_overlappers_x(frame_boxes, boxes)
@@ -1891,7 +1894,7 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
 
         if largest < 2:
             for frame in row:
-                old_y, old_box = old_values[frame]
+                old_y, old_box = before_centered[frame]
                 move(frame, y=old_y - frame_boxes[frame].top)
                 frame_boxes[frame] = old_box
 
@@ -1904,7 +1907,7 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
             move(frame, y=-movement)
             frame_boxes[frame].move(y=-movement)
 
-    disperse_frames(frame_boxes, col_boxes)
+    disperse_nodes(frame_boxes, col_boxes)
 
 
 # -------------------------------------------------------------------
@@ -2212,10 +2215,7 @@ def move_unframed_unused(offset, boxes):
         box.expand(*MARGIN / 2)
 
     indexed_boxes = {i: b for i, b in enumerate(boxes.values())}
-    movements = dispersed(subtree_boxes, indexed_boxes)
-    for subtree, movement in movements.items():
-        for node in subtree:
-            move(node, y=-movement)
+    disperse_nodes(subtree_boxes, indexed_boxes)
 
 
 # -------------------------------------------------------------------
