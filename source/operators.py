@@ -1445,9 +1445,10 @@ def get_alignable_ancestors(trail: list[Node]) -> list[Node]:
     except ValueError:
         return trail
 
-    col = next(c for c in Maps.frame_columns[pred.parent] if pred in c)
+    columns = Maps.frame_columns[pred.parent]
+    col = next(c for c in columns if pred in c)
 
-    if col[0] != pred:
+    if col[0] != pred or trail[-1] not in columns[columns.index(col) - 1]:
         return trail
 
     max_right = max(map(get_right, col))
@@ -1466,27 +1467,27 @@ def align_highest_nodes(columns: Sequence[Sequence[Node]]) -> None:
 
         trail = [n for n in get_alignable_ancestors([col[0]]) if n.bl_idname != 'NodeReroute']
         prev_furthest_idx = i + len(trail)
+        tops = {get_top(n) for n in trail}
 
-        if len({get_top(n) for n in trail}) <= 1:
+        if len(tops) < 2:
             continue
 
-        node_map = {}
-        for node, col in zip(trail, columns[i:]):
-            below = next((n for n in col if n != node and n.bl_idname != 'NodeReroute'), None)
-            node_map[node] = (get_top(node), below)
+        target_y = max(tops)
 
-        target_y = max(map(get_top, trail))
-
-        for node, (top, below) in node_map.items():
-            if not below or top == target_y or int(get_bottom(node) - get_top(below)) != MARGIN.y:
+        curr_aligned = []
+        future_aligned = set(trail)
+        for group, y in group_by(chain(*columns), key=get_top).items():
+            if y not in tops:
                 continue
 
-            if all(y == top or not b for y, b in node_map.values()):
-                target_y = top
-                break
+            if y != target_y:
+                curr_aligned.append(group)
+            else:
+                future_aligned.update(group)
 
-        for node in trail:
-            move_to(node, y=corrected_y(node, target_y))
+        if len(future_aligned) > max(map(len, curr_aligned)) * 2:
+            for node in trail:
+                move_to(node, y=corrected_y(node, target_y))
 
 
 # -------------------------------------------------------------------
