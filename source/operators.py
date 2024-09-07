@@ -1,16 +1,24 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from collections.abc import Hashable, Iterable, Iterator, MutableSequence, Sequence
+from collections.abc import (
+  Callable,
+  Collection,
+  Hashable,
+  Iterable,
+  Iterator,
+  MutableSequence,
+  Sequence,
+)
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from functools import cmp_to_key
 from itertools import chain, combinations, pairwise
 from operator import gt, itemgetter, lt
 from statistics import fmean
-from typing import Any
+from typing import Any, TypeVar
 
 import bpy
-from bpy.types import Node, NodeFrame, NodeSocket, Operator
+from bpy.types import Context, Node, NodeFrame, NodeReroute, NodeSocket, NodeTree, Operator
 from bl_math import clamp
 from mathutils import Vector
 from mathutils.geometry import interpolate_bezier
@@ -33,6 +41,9 @@ INF_BEYOND = 10**10
 ITER_LIMIT_MULT = 1000
 COMPACT_HEIGHT = 450
 MIN_ADJ_COLS = 2
+
+_T1 = TypeVar('_T1', bound=Hashable)
+_T2 = TypeVar('_T2', bound=Hashable)
 
 # -------------------------------------------------------------------
 #   Parents and children
@@ -520,7 +531,7 @@ def move_nodes(nodes: Iterable[Node], *, x: float = 0, y: float = 0) -> None:
 # -------------------------------------------------------------------
 
 
-def get_links(ntree):
+def get_links(ntree: NodeTree) -> None:
     # Precompute links to:
     # 1. Avoid `O(len(ntree.links))` time
     # 2. Ignore invalid/hidden links
@@ -541,7 +552,7 @@ def get_links(ntree):
         sockets[link.from_socket].append(link.to_socket)
 
 
-def get_columns(output_nodes):
+def get_columns(output_nodes: Collection[Node]) -> list[list[Node]]:
     columns = [output_nodes]
     idx = 0
     while columns[idx]:
@@ -558,7 +569,7 @@ def get_columns(output_nodes):
     return [sc for uc in columns if (sc := [n for n in uc if n.select])]
 
 
-def min_col_idx(item):
+def min_col_idx(item: Sequence[Any, Iterable[Collection[Node]]]) -> int:
     universal_columns = Maps.universal_columns
     idxs = []
     for col in item[1]:
@@ -567,7 +578,7 @@ def min_col_idx(item):
     return min(idxs)
 
 
-def get_frame_columns():
+def get_frame_columns() -> None:
     frame_columns = {}
     for frame, children in Maps.all_children.items():
         columns = [fc for c in Maps.universal_columns if (fc := [n for n in c if n in children])]
@@ -583,7 +594,7 @@ def get_frame_columns():
 # -------------------------------------------------------------------
 
 
-def get_arranged(columns):
+def get_arranged(columns: Sequence[Sequence[Node]]) -> dict[Node, Vector]:
     arranged = {}
     for i, col in enumerate(columns):
         if i != 0:
@@ -603,7 +614,7 @@ def get_arranged(columns):
     return arranged
 
 
-def arrange_frame_columns():
+def arrange_frame_columns() -> None:
     universal_arranged = get_arranged(Maps.universal_columns)
     for frame, columns in Maps.frame_columns.items():
         arranged = get_arranged(columns)
@@ -623,7 +634,7 @@ def arrange_frame_columns():
 # -------------------------------------------------------------------
 
 
-def link_stretch(nodes, movement=0):
+def link_stretch(nodes: Collection[Node], movement: float = 0) -> float:
     stretch = 0
     for node in nodes:
         x = abs_loc(node).x + movement
@@ -640,7 +651,7 @@ def link_stretch(nodes, movement=0):
     return stretch
 
 
-def get_input_lengths(nodes):
+def get_input_lengths(nodes: Collection[Node]) -> dict[Node, float]:
     lengths = {}
     for node in nodes:
         input_x = abs_loc(node).x
@@ -655,7 +666,7 @@ def get_input_lengths(nodes):
     return lengths
 
 
-def get_output_lengths(nodes):
+def get_output_lengths(nodes: Collection[Node]) -> dict[Node, float]:
     lengths = {}
     for node in nodes:
         output_x = get_right(node)
@@ -675,7 +686,7 @@ def get_output_lengths(nodes):
 # -------------------------------------------------------------------
 
 
-def ideal_x_movement(nodes, line_x):
+def ideal_x_movement(nodes: Collection[Node], line_x: Iterable[float]) -> float:
     from_x = []
     to_x = []
     for node in nodes:
@@ -719,12 +730,12 @@ def ideal_x_movement(nodes, line_x):
     return target_x - (left + right) / 2
 
 
-def ideal_frame_x_movement(frame):
+def ideal_frame_x_movement(frame: NodeFrame) -> float:
     children = Maps.used_children[frame]
     return ideal_x_movement(children, get_box(children).line_x)
 
 
-def resolved_with_min_movement(children):
+def resolved_with_min_movement(children: Sequence[Node]) -> bool:
     # Move the children's immediate successor rightwards, then move the
     # children's frame rightwards, and see if it's resolved.
 
@@ -770,7 +781,7 @@ def resolved_with_min_movement(children):
     return True
 
 
-def make_space_for_stretched(frame):
+def make_space_for_stretched(frame: NodeFrame | None) -> None:
     if not frame:
         return
 
@@ -807,7 +818,7 @@ def make_space_for_stretched(frame):
 # -------------------------------------------------------------------
 
 
-def move_outlier(node):
+def move_outlier(node: Node) -> None:
     try:
         input_dist = min(get_input_lengths([node]).values())
         output_dist = min(get_output_lengths([node]).values())
@@ -826,7 +837,7 @@ def move_outlier(node):
         move(node, x=movement)
 
 
-def get_new_columns(frame):
+def get_new_columns(frame: NodeFrame | None) -> list[list[Node]]:
     nodes_left_to_right = sorted(Maps.used_children[frame], key=lambda n: abs_loc(n).x)
 
     prev_node = nodes_left_to_right[0]
@@ -877,7 +888,7 @@ def get_aligned_columns(
         yield from get_aligned_columns(col, columns[i + 1], columns)
 
 
-def merge_columns(columns: list[Iterable[Node]]) -> None:
+def merge_columns(columns: list[Collection[Node]]) -> None:
     for node in dict.fromkeys(chain(*columns)):
         components = [c for c in columns if node in c]
 
@@ -913,7 +924,7 @@ def contract_nodes_y(col: Iterable[Node]) -> None:
             move(node2, y=dist - MARGIN.y)
 
 
-def regenerate_columns(frame):
+def regenerate_columns(frame: NodeFrame | None) -> None:
     for node in Maps.used_children[frame]:
         move_outlier(node)
 
@@ -935,10 +946,11 @@ def regenerate_columns(frame):
 # -------------------------------------------------------------------
 
 
-def group_by(iterable, *, key):
+def group_by(iterable: Iterable[_T1], key: Callable[[_T1], _T2]) -> dict[tuple[_T1, ...], _T2]:
     groups = defaultdict(list)
     for item in iterable:
         groups[key(item)].append(item)
+
     return {tuple(g): k for k, g in groups.items()}
 
 
@@ -1039,7 +1051,7 @@ def move_frames_to_linked_y() -> None:
             move(node, y=movement)
 
 
-def get_ideal_y(node: Node, divided_rows: Iterable[Sequence[Node]], line_y: Line) -> float:
+def get_ideal_y(node: Node, divided_rows: Collection[Sequence[Node]], line_y: Line) -> float:
     y = abs_loc(node).y
     parent = node.parent
 
@@ -1508,6 +1520,12 @@ def align_highest_nodes(columns: Sequence[Sequence[Node]]) -> None:
 # -------------------------------------------------------------------
 
 
+def add_children(nodes: set[Node]) -> None:
+    for frame in {n.parent for n in nodes}:
+        if frame:
+            nodes.update(Maps.used_children[frame])
+
+
 def saves_space(box1: Box, box2: Box, boxes: dict[Hashable, Box]) -> bool:
 
     # If the height of the boxes within the overlap range is >=
@@ -1540,7 +1558,12 @@ def saves_space(box1: Box, box2: Box, boxes: dict[Hashable, Box]) -> bool:
     return height > COMPACT_HEIGHT + MARGIN.y * 2
 
 
-def get_overlapping(to_move, boxes, key1, cmp):
+def get_overlapping(
+  to_move: set[Node],
+  boxes: dict[NodeFrame | tuple[Node, ...], Box],
+  key1: NodeFrame | tuple[Node, ...],
+  cmp: Callable[[float, float], bool],
+) -> list[NodeFrame | tuple[Node, ...]]:
     box1 = boxes[key1]
     frames_to_move = {n.parent for n in to_move}
     overlapping = []
@@ -1559,13 +1582,11 @@ def get_overlapping(to_move, boxes, key1, cmp):
     return overlapping
 
 
-def add_children(nodes):
-    for frame in {n.parent for n in nodes}:
-        if frame:
-            nodes.update(Maps.used_children[frame])
-
-
-def update_boxes_by_nodes(nodes, boxes, movement):
+def update_boxes_by_nodes(
+  nodes: Iterable[Node],
+  boxes: dict[NodeFrame | tuple[Node, ...], Box],
+  movement: float,
+) -> None:
     moved = set()
     for node in nodes:
         if frame := node.parent:
@@ -1582,7 +1603,10 @@ def update_boxes_by_nodes(nodes, boxes, movement):
             moved.update(key)
 
 
-def compact_frames_x(frame_boxes, col_boxes):
+def compact_frames_x(
+  frame_boxes: dict[NodeFrame, Box],
+  col_boxes: dict[tuple[Node, ...], Box],
+) -> None:
     boxes = sorted_boxes(frame_boxes | col_boxes)
     children = Maps.used_children
 
@@ -1639,13 +1663,17 @@ def compact_frames_x(frame_boxes, col_boxes):
 # -------------------------------------------------------------------
 
 
-def space_to_move(frame):
+def space_to_move(frame: NodeFrame) -> float:
     children = Maps.used_children[frame]
     lengths = chain(get_input_lengths(children).values(), get_output_lengths(children).values())
     return min(lengths, default=0)
 
 
-def should_center_x(frame, target_center, frame_boxes):
+def should_center_x(
+  frame: NodeFrame,
+  target_center: float,
+  frame_boxes: dict[NodeFrame, Box],
+) -> bool:
     box = frame_boxes[frame]
     movement = target_center - box.center.x
 
@@ -1668,7 +1696,7 @@ def should_center_x(frame, target_center, frame_boxes):
     return True
 
 
-def center_frames_x(frame_boxes):
+def center_frames_x(frame_boxes: dict[NodeFrame, Box]) -> None:
     others = {f1: [f2 for f2 in frame_boxes if f1 != f2] for f1 in frame_boxes}
     history = defaultdict(set)
 
@@ -1709,7 +1737,10 @@ def center_frames_x(frame_boxes):
 # -------------------------------------------------------------------
 
 
-def unite(row, boxes):
+def unite(
+  row: Collection[NodeFrame | tuple[Node, ...]],
+  boxes: dict[NodeFrame | tuple[Node, ...], Box],
+) -> None:
     if len(row) < 3:
         return
 
@@ -1738,7 +1769,10 @@ def unite(row, boxes):
         box.move(y=movement)
 
 
-def unite_box_rows(frame_boxes, col_boxes):
+def unite_box_rows(
+  frame_boxes: dict[NodeFrame, Box],
+  col_boxes: dict[tuple[Node, ...], Box],
+) -> None:
     boxes = sorted_boxes(frame_boxes | col_boxes)
     for row in get_box_rows(boxes):
         unite(row, boxes)
@@ -1749,7 +1783,9 @@ def unite_box_rows(frame_boxes, col_boxes):
 # -------------------------------------------------------------------
 
 
-def get_nested_boxes(frame_boxes):
+def get_nested_boxes(
+  frame_boxes: dict[NodeFrame, Box],
+) -> Iterator[tuple[dict[NodeFrame, Box], dict[tuple[Node, ...], Box]]]:
     for frame in frame_boxes:
         nested_frame_boxes = {f: b for f, b in frame_boxes.items() if f.parent == frame}
 
@@ -1762,7 +1798,10 @@ def get_nested_boxes(frame_boxes):
         yield from get_nested_boxes(nested_frame_boxes)
 
 
-def center_frames_y(frame_boxes, nearest) -> list[list[NodeFrame]]:
+def center_frames_y(
+  frame_boxes: dict[NodeFrame, Box],
+  nearest: dict[NodeFrame, Hashable],
+) -> list[list[NodeFrame]]:
     frame_boxes = dict(reversed(frame_boxes.items()))
 
     x_locs = [abs_loc(c[0][0]).x for c in Maps.frame_columns.values()]
@@ -1836,7 +1875,12 @@ def get_overlappers_x(
     return overlappers_x
 
 
-def will_break_box_row(frame, row, boxes, line_x) -> bool:
+def will_break_box_row(
+  frame: NodeFrame,
+  row: dict[Hashable],
+  boxes: dict[Hashable, Box],
+  line_x: Line,
+) -> bool:
     row = [k for k in row if k == frame or not line_x.overlaps(boxes[k].line_x)]
     i = row.index(frame)
     leftwards = row[(i - MIN_ADJ_COLS):(i)]
@@ -1846,7 +1890,11 @@ def will_break_box_row(frame, row, boxes, line_x) -> bool:
       for a, b in pairwise(leftwards + rightwards))
 
 
-def get_levelled_frames(row_items, boxes, movement) -> set[NodeFrame]:
+def get_levelled_frames(
+  row_items: dict[NodeFrame, Sequence[list[Box], Sequence[Hashable]]],
+  boxes: dict[Hashable, Box],
+  movement: float,
+) -> set[NodeFrame]:
     levelled = set()
     for frame, (overlappers_x, row) in row_items.items():
         box = replace(boxes[frame])
@@ -1862,7 +1910,10 @@ def get_levelled_frames(row_items, boxes, movement) -> set[NodeFrame]:
     return levelled
 
 
-def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
+def center_and_disperse_frames_y(
+  frame_boxes: dict[NodeFrame, Box],
+  col_boxes: dict[tuple[Node, ...], Box],
+) -> None:
     nested_boxes = tuple(get_nested_boxes(frame_boxes))
     for nested_frame_boxes, nested_col_boxes in reversed(nested_boxes):
         disperse_nodes(nested_frame_boxes, nested_col_boxes)
@@ -1924,7 +1975,10 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
 # -------------------------------------------------------------------
 
 
-def get_beyond(box1, boxes):
+def get_beyond(
+  box1: Box,
+  boxes: dict[NodeFrame | tuple[Node, ...], Box],
+) -> tuple[list[Node], list[float]]:
     beyond = []
     distances = []
     for key2, box2 in boxes.items():
@@ -1941,13 +1995,20 @@ def get_beyond(box1, boxes):
     return beyond, distances
 
 
-def has_closer(box1, boxes, movement):
+def has_closer(
+  box1: Box,
+  boxes: dict[NodeFrame | tuple[Node, ...], Box],
+  movement: float,
+) -> bool:
     for box2 in boxes.values():
         if box2.left == box1.left and any(d < movement for d in get_beyond(box2, boxes)[1]):
             return True
 
 
-def contract_x(frame_boxes, col_boxes):
+def contract_x(
+  frame_boxes: dict[NodeFrame, Box],
+  col_boxes: dict[tuple[Node, ...], Box],
+) -> None:
     active_unframed = set(Maps.used_children.get(None, []))
     reroutes = active_unframed.difference(chain(*col_boxes))
     all_col_boxes = {tuple([r]): get_box([r]) for r in reroutes} | col_boxes
@@ -1993,7 +2054,11 @@ def contract_x(frame_boxes, col_boxes):
 # -------------------------------------------------------------------
 
 
-def get_reroute_ancestors(node, reroutes, seen):
+def get_reroute_ancestors(
+  node: Node,
+  reroutes: Collection[NodeReroute],
+  seen: Collection[NodeReroute],
+) -> Iterator[NodeReroute]:
     if node not in reroutes:
         return
 
@@ -2006,7 +2071,7 @@ def get_reroute_ancestors(node, reroutes, seen):
     yield from get_reroute_ancestors(linked, reroutes, seen)
 
 
-def get_reroute_segments(children):
+def get_reroute_segments(children: Iterable[Node]) -> list[tuple[NodeReroute, ...]]:
     reroutes = [#
       n for n in children
       if n.bl_idname == 'NodeReroute'
@@ -2030,7 +2095,7 @@ def get_reroute_segments(children):
     return segments
 
 
-def arrange_framed_reroutes(segment, children):
+def arrange_framed_reroutes(segment: Sequence[NodeReroute], children: Collection[Node]) -> None:
     sockets = Maps.sockets
 
     end = segment[-1]
@@ -2064,7 +2129,12 @@ def arrange_framed_reroutes(segment, children):
         move_to(reroute, y=output_y)
 
 
-def get_movement_x(reroute, box, boxes, movement):
+def get_movement_x(
+  reroute: NodeReroute,
+  box: Box,
+  boxes: Collection[Box],
+  movement: float,
+) -> float | None:
     copied = replace(box)
     total_movement = 0
     while any(copied.overlaps(b) for b in boxes):
@@ -2079,7 +2149,7 @@ def get_movement_x(reroute, box, boxes, movement):
     return None
 
 
-def disperse_reroute_x(reroute, boxes):
+def disperse_reroute_x(reroute: NodeReroute, boxes: Collection[Box]) -> None:
     box = get_box([reroute])
     right = get_movement_x(reroute, box, boxes, 1)
 
@@ -2099,7 +2169,10 @@ def disperse_reroute_x(reroute, boxes):
         move(reroute, x=min(right, left, key=abs))
 
 
-def disperse_reroutes_x(segments, boxes=None):
+def disperse_reroutes_x(
+  segments: Sequence[Sequence[NodeReroute]],
+  boxes: list[Box] | None = None,
+) -> None:
     try:
         reroute = segments[0][0]
     except IndexError:
@@ -2120,7 +2193,7 @@ def disperse_reroutes_x(segments, boxes=None):
             disperse_reroute_x(reroute, boxes)
 
 
-def arrange_all_framed_reroutes(frame_boxes):
+def arrange_all_framed_reroutes(frame_boxes: dict[NodeFrame, Box]) -> None:
 
     # A while loop isn’t worth the risk here. The higher the UI scale, the
     # more incorrect the movement of `bpy.ops.translate()` is (but not in a
@@ -2150,7 +2223,7 @@ def arrange_all_framed_reroutes(frame_boxes):
                 move_to(reroute, y=old_y)
 
 
-def arrange_unframed_reroutes(segment):
+def arrange_unframed_reroutes(segment: Sequence[NodeReroute]) -> None:
     output_y = get_output_y(Maps.sockets[segment[0].inputs[0]][0])
     for reroute in segment:
         move_to(reroute, y=output_y)
@@ -2172,7 +2245,7 @@ def arrange_unframed_reroutes(segment):
 # -------------------------------------------------------------------
 
 
-def get_unused(frame):
+def get_unused(frame: NodeFrame | None) -> list[Node]:
     used = set(chain(*Maps.universal_columns))
     unused = []
     for node in Maps.all_children[frame]:
@@ -2187,13 +2260,13 @@ def get_unused(frame):
     return unused
 
 
-def move_framed_unused(frame):
+def move_framed_unused(frame: NodeFrame) -> None:
     box = get_box(Maps.used_children[frame])
     for node in get_unused(frame):
         move_to(node, x=box.left, y=box.bottom + (get_top(node) - get_bottom(node)))
 
 
-def get_unused_subtrees(unused):
+def get_unused_subtrees(unused: Collection[Node]) -> list[Collection[Node]]:
     subtrees = []
     for node in unused:
         item = [node]
@@ -2213,7 +2286,7 @@ def get_unused_subtrees(unused):
     return subtrees
 
 
-def move_unframed_unused(offset, boxes):
+def move_unframed_unused(offset: Vector, boxes: dict[Hashable, Box]) -> None:
     unused = get_unused(None)
 
     for node in unused:
@@ -2232,7 +2305,7 @@ def move_unframed_unused(offset, boxes):
 # -------------------------------------------------------------------
 
 
-def clear_bl_data_references():
+def clear_bl_data_references() -> None:
     for key, val in vars(Maps).items():
         if not key.startswith('_'):
             val.clear()
@@ -2260,7 +2333,7 @@ class NA_OT_ArrangeSelected(Operator):
     bl_description = "Arrange selected nodes"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def execute(self, context):
+    def execute(self, context: Context) -> set[str]:
         global MARGIN
         MARGIN = Vector(context.scene.na_settings.margin).freeze()
 
@@ -2389,12 +2462,12 @@ class NA_OT_ArrangeSelected(Operator):
 classes = [NA_OT_ArrangeSelected]
 
 
-def register():
+def register() -> None:
     for cls in classes:
         bpy.utils.register_class(cls)
 
 
-def unregister():
+def unregister() -> None:
     for cls in reversed(classes):
         if cls.is_registered:
             bpy.utils.unregister_class(cls)

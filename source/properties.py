@@ -20,14 +20,14 @@ class NA_PG_Settings(PropertyGroup):
 classes = [NA_PG_Settings]
 
 
-def register():
+def register() -> None:
     for cls in classes:
         register_class(cls)
 
     Scene.na_settings = PointerProperty(type=NA_PG_Settings)
 
 
-def unregister():
+def unregister() -> None:
     for cls in reversed(classes):
         if cls.is_registered:
             unregister_class(cls)
