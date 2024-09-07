@@ -1893,19 +1893,22 @@ def center_and_disperse_frames_y(frame_boxes, col_boxes) -> None:
         largest = max(counts.values())
 
         if largest < 2:
+            to_move_back = row
+        else:
+            best_movement = min([m for m, l in counts.items() if l == largest], key=abs)
+            levelled = results[best_movement]
+            to_move_back = []
             for frame in row:
-                old_y, old_box = before_centered[frame]
-                move(frame, y=old_y - frame_boxes[frame].top)
-                frame_boxes[frame] = old_box
+                if frame in levelled:
+                    move(frame, y=-best_movement)
+                    frame_boxes[frame].move(y=-best_movement)
+                else:
+                    to_move_back.append(frame)
 
-            continue
-
-        best_movement = min([m for m, l in counts.items() if l == largest], key=abs)
-        levelled = results[best_movement]
-        for frame in row:
-            movement = best_movement if frame in levelled else movements[frame]
-            move(frame, y=-movement)
-            frame_boxes[frame].move(y=-movement)
+        for frame in to_move_back:
+            old_y, old_box = before_centered[frame]
+            move(frame, y=old_y - frame_boxes[frame].top)
+            frame_boxes[frame] = old_box
 
     disperse_nodes(frame_boxes, col_boxes)
 
