@@ -1393,7 +1393,13 @@ def get_linear_chains(columns: Sequence[Sequence[Node]]) -> list[list[Node]]:
     return linear_chains
 
 
-def align_lin_chain(lin_chain: Sequence[Node]) -> None:
+def align_lin_chain(lin_chain: Sequence[Node], line_y: Line | None) -> None:
+    target_y = min(map(get_top, lin_chain))
+
+    lowers_frame_bottom = line_y and line_y.a > min([get_bottom(n, target_y) for n in lin_chain])
+    if (line_y and target_y > line_y.b) or lowers_frame_bottom:
+        return
+
     lower_col_boxes = {}
     for col in Maps.frame_columns[lin_chain[0].parent]:
         try:
@@ -1407,7 +1413,6 @@ def align_lin_chain(lin_chain: Sequence[Node]) -> None:
             if top > box.top:
                 lower_col_boxes[subcol] = box
 
-    target_y = min(map(get_top, lin_chain))
     sub_boxes = {}
     for node in lin_chain:
         move_to(node, y=corrected_y(node, target_y))
@@ -1418,7 +1423,7 @@ def align_lin_chain(lin_chain: Sequence[Node]) -> None:
     disperse_nodes(lower_col_boxes, sub_boxes)
 
 
-def align_linear_chains(frame) -> None:
+def align_linear_chains(frame: NodeFrame | None) -> None:
     columns = Maps.frame_columns[frame]
     linear_chains = get_linear_chains(columns)
 
@@ -1433,8 +1438,9 @@ def align_linear_chains(frame) -> None:
         return 0
 
     linear_chains.sort(key=cmp_to_key(idx_in_col))
+    line_y = get_box(chain(*columns)).line_y if frame else None
     for lin_chain in linear_chains:
-        align_lin_chain(lin_chain)
+        align_lin_chain(lin_chain, line_y)
 
     for col in columns:
         col.sort(key=get_top, reverse=True)
