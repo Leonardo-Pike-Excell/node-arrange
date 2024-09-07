@@ -1,16 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from bpy.props import (
-  BoolProperty,
-  EnumProperty,
-  IntVectorProperty,
-  PointerProperty,
-)
+from bpy.props import IntVectorProperty, PointerProperty
 from bpy.types import PropertyGroup, Scene
-from bpy.utils import (
-  register_class,
-  unregister_class,
-)
+from bpy.utils import register_class, unregister_class
 
 
 class NA_PG_Settings(PropertyGroup):

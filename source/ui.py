@@ -1,10 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from bpy.types import Panel
-from bpy.utils import (
-  register_class,
-  unregister_class,
-)
+from bpy.utils import register_class, unregister_class
 
 
 class NA_PT_Panel(Panel):
