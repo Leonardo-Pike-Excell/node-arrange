@@ -542,7 +542,7 @@ def get_links(ntree: NodeTree) -> None:
     sockets = Maps.sockets
 
     for link in ntree.links:
-        if link.is_hidden:
+        if link.is_hidden or not link.is_valid:
             continue
 
         links[link.to_socket].append(link.from_node)
