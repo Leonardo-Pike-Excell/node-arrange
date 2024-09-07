@@ -151,7 +151,7 @@ def abs_loc(node: Node) -> Vector:
 
 
 def dimensions(node: Node) -> Vector:
-    return node.dimensions / SCALE_FAC
+    return node.dimensions / SCALE_FAC if node.bl_idname != 'NodeReroute' else node.dimensions / 2
 
 
 def get_right(node: Node) -> float:
