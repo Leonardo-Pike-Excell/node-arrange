@@ -2195,11 +2195,10 @@ def disperse_reroutes_x(
 
 def arrange_all_framed_reroutes(frame_boxes: dict[NodeFrame, Box]) -> None:
 
-    # A while loop isn’t worth the risk here. The higher the UI scale, the
-    # more incorrect the movement of `bpy.ops.translate()` is (but not in a
-    # consistent way that can be accounted for). And so reroutes could
-    # endlessly try and fail to move into a position, overshooting it each
-    # time. Two iterations should also be all that’s needed.
+    # A while loop isn’t worth the risk here. Since `bpy.ops.translate()`
+    # rounds new locations, reroutes could endlessly try and fail to move into
+    # a position, missing it each time. Two iterations should also be all
+    # that’s needed.
 
     items = [(f, c) for f, c in Maps.used_children.items() if f and len(c) > 1]
     for frame, children in items * 2:
