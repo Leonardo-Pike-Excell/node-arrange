@@ -2458,7 +2458,34 @@ class NA_OT_ArrangeSelected(Operator):
         return {'FINISHED'}
 
 
-classes = [NA_OT_ArrangeSelected]
+class NA_OT_ClearLocations(Operator):
+    bl_idname = "node.na_clear_locations"
+    bl_label = "Clear Locations"
+    bl_description = "Clear the locations of selected nodes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context: Context) -> set[str]:
+        nodes = context.space_data.edit_tree.nodes
+
+        global SELECTED
+        SELECTED = [n for n in nodes if n.select]
+
+        if not SELECTED:
+            self.report({'WARNING'}, "No nodes selected")
+            return {'CANCELLED'}
+
+        if nodes.active.select:
+            origin = nodes.active
+        else:
+            origin = max(SELECTED, key=lambda n: sum(abs_loc(n)))
+
+        x, y = Vector((0, 0)) - abs_loc(origin)
+        move_nodes(SELECTED, x=x, y=y)
+
+        return {'FINISHED'}
+
+
+classes = [NA_OT_ArrangeSelected, NA_OT_ClearLocations]
 
 
 def register() -> None:

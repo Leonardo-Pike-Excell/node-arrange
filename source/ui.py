@@ -4,11 +4,14 @@ from bpy.types import Context, Panel
 from bpy.utils import register_class, unregister_class
 
 
-class NA_PT_Panel(Panel):
-    bl_label = "Node Arrange"
-    bl_space_type = "NODE_EDITOR"
-    bl_region_type = "UI"
+class NodePanel:
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'UI'
     bl_category = "Arrange"
+
+
+class NA_PT_ArrangeSelected(NodePanel, Panel):
+    bl_label = "Arrange"
 
     def draw(self, context: Context) -> None:
         layout = self.layout
@@ -22,7 +25,16 @@ class NA_PT_Panel(Panel):
         layout.prop(settings, "margin")
 
 
-classes = [NA_PT_Panel]
+class NA_PT_ClearLocations(NodePanel, Panel):
+    bl_label = "Clear"
+
+    def draw(self, context: Context) -> None:
+        layout = self.layout
+
+        layout.operator("node.na_clear_locations")
+
+
+classes = [NA_PT_ArrangeSelected, NA_PT_ClearLocations]
 
 
 def register() -> None:
