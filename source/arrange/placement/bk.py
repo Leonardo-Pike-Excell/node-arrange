@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 from itertools import pairwise
 from math import ceil, floor, inf
 from statistics import fmean
@@ -16,7 +16,7 @@ from typing import Any, cast
 import networkx as nx
 
 from ... import config
-from ..graph import FROM_SOCKET, TO_SOCKET, Edge, GNode, GType, Socket
+from ..graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, GNode, GType, Socket
 
 
 def marked_conflicts(
@@ -58,6 +58,7 @@ def marked_conflicts(
 def horizontal_alignment(
   G: nx.DiGraph[GNode],
   marked_edges: Collection[frozenset[GNode]],
+  marked_nodes: Collection[GNode],
 ) -> None:
     for col in G.graph['columns']:
         prev_i = -1
@@ -68,6 +69,9 @@ def horizontal_alignment(
                 i = u.col.index(u)
 
                 if v.aligned != v or {u, v} in marked_edges or prev_i >= i:
+                    continue
+
+                if u.cluster != v.cluster and {u, v} & marked_nodes:  # type: ignore
                     continue
 
                 u.aligned = v
@@ -176,6 +180,68 @@ def vertical_compaction(G: nx.DiGraph[GNode], is_up: bool) -> None:
         v.y += v.sink.shift + v.inner_shift
 
 
+def get_merged_lines(lines: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
+    merged = []
+    for line in sorted(lines, key=lambda l: l[0]):
+        if merged and merged[-1][1] >= line[0]:
+            a, b = merged[-1]
+            merged[-1] = (a, max(b, line[1]))
+        else:
+            merged.append(line)
+
+    return merged
+
+
+def has_large_gaps_in_frame(cluster: Cluster, T: nx.DiGraph[Cluster | GNode], is_up: bool) -> bool:
+    lines = []
+    for v in T[cluster]:
+        if v.type == GType.VERTICAL_BORDER:
+            continue
+
+        if v.type != GType.CLUSTER:
+            line = (v.y, v.y + v.height) if is_up else (v.y - v.height, v.y)
+        else:
+            vertical_border_roots = {w.root for w in T[v] if w.type == GType.VERTICAL_BORDER}
+            w, z = sorted(vertical_border_roots, key=lambda w: w.y)
+            line = (w.y, z.y + z.height) if is_up else (w.y - w.height, z.y)
+
+        lines.append(line)
+
+    merged = get_merged_lines(lines)
+    return any(l2[0] - l1[1] > config.MARGIN.y for l1, l2 in pairwise(merged))
+
+
+def get_marked_nodes(
+  G: nx.DiGraph[GNode],
+  T: nx.DiGraph[GNode | Cluster],
+  old_marked_nodes: set[GNode],
+  is_up: bool,
+) -> set[GNode]:
+    marked_nodes = set()
+    for cluster in T:
+        if cluster.type != GType.CLUSTER or cluster.nesting_level != 1:
+            continue
+
+        descendant_clusters = cast(
+          set[Cluster],
+          (nx.descendants(T, cluster) & (T.nodes - G.nodes)) | {cluster},
+        )
+        for nested_cluster in sorted(
+          descendant_clusters,
+          key=lambda c: cast(int, c.nesting_level),
+          reverse=True,
+        ):
+            children = {v for v in T[nested_cluster] if v.type != GType.CLUSTER}
+
+            if children & old_marked_nodes:
+                continue
+
+            if has_large_gaps_in_frame(nested_cluster, T, is_up):
+                marked_nodes.update(children)
+
+    return marked_nodes
+
+
 def balance(G: nx.DiGraph[GNode], layouts: list[list[float]]) -> None:
 
     def min_y(layout: Sequence[float]) -> float:
@@ -197,7 +263,10 @@ def balance(G: nx.DiGraph[GNode], layouts: list[list[float]]) -> None:
             layout[j] += movement
 
 
-def bk_assign_y_coords(G: nx.MultiDiGraph[GNode]) -> None:
+_ITER_LIMIT = 20
+
+
+def bk_assign_y_coords(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> None:
     columns = G.graph['columns']
     for col in columns:
         col.reverse()
@@ -212,10 +281,21 @@ def bk_assign_y_coords(G: nx.MultiDiGraph[GNode]) -> None:
         G = nx.reverse_view(G)  # type: ignore
         columns.reverse()
         for dir_y in (-1, 1):
-            horizontal_alignment(G, marked_edges)
+            i = 0
+            marked_nodes = set()
             is_up = dir_y == 1
-            inner_shift(G, dir_x == 1, is_up)
-            vertical_compaction(G, is_up)
+            while i < _ITER_LIMIT:
+                i += 1
+                horizontal_alignment(G, marked_edges, marked_nodes)
+                inner_shift(G, dir_x == 1, is_up)
+                vertical_compaction(G, is_up)
+
+                if new_marked_nodes := get_marked_nodes(G, T, marked_nodes, is_up):
+                    marked_nodes.update(new_marked_nodes)
+                    for v in G:
+                        v.reset()
+                else:
+                    break
             layouts.append([v.y * -dir_y for v in G])
 
             for v in G:

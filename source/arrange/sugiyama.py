@@ -579,7 +579,7 @@ def sugiyama_layout(ntree: NodeTree) -> None:
     minimize_crossings(G, T)
 
     CG.add_vertical_border_nodes()
-    bk_assign_y_coords(G)
+    bk_assign_y_coords(G, T)
 
     align_reroutes_with_sockets(CG)
     CG.remove_nodes_from([v for v in G if v.type == GType.VERTICAL_BORDER])
