@@ -91,7 +91,7 @@ def batch_modify(bl_data: Iterable[bpy.types.ID], cls: Type[Operator], *, redraw
         for node in nodes:
             node.select = True
 
-        if redraw_ui and not id_data.use_extra_user:
+        if redraw_ui and nodes and nodes[0].dimensions.x == 0:
             bpy.ops.wm.redraw_timer(type='DRAW', iterations=0)
 
         op()
