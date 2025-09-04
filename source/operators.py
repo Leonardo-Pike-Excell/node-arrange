@@ -136,14 +136,24 @@ class NA_OT_RecenterSelected(NodeOperator, Operator):
             self.report({'WARNING'}, "No valid nodes selected")
             return {'CANCELLED'}
 
-        if context.scene.na_settings.origin == 'ACTIVE_NODE':  # type: ignore
+        origin_type = context.scene.na_settings.origin  # type: ignore
+        if origin_type == 'ACTIVE_NODE':
             if nodes.active in non_frames:
                 origin = abs_loc(nodes.active)
             else:
                 self.report({'WARNING'}, "No valid active node")
                 return {'CANCELLED'}
         else:
-            origin = Vector(map(fmean, zip(*map(abs_loc, non_frames))))
+            if origin_type == 'ACTIVE_OUTPUT':
+                if active_outputs := [n for n in nodes if getattr(n, 'is_active_output', False)]:
+                    origin_nodes = active_outputs
+                else:
+                    self.report({'WARNING'}, "No active output")
+                    return {'CANCELLED'}
+            else:
+                origin_nodes = non_frames
+
+            origin = Vector(map(fmean, zip(*map(abs_loc, origin_nodes))))
 
         # Optimization: use `bpy.ops.transform.translate()` instead of modifying location
         # properties to prevent node tree re-evaluation.
