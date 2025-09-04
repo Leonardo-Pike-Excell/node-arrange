@@ -126,7 +126,7 @@ def get_reroute_paths(
 
     indicies = {v: i for i, v in enumerate(nx.topological_sort(G)) if v in reroutes}
     paths = [sorted(c, key=lambda v: indicies[v]) for c in nx.weakly_connected_components(SG)]
-    paths.sort(key=lambda p: indicies[p[0]])
+    paths.sort(key=lambda p: sum([indicies[v] for v in p]))
     return paths
 
 
