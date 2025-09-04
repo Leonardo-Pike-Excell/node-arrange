@@ -6,8 +6,20 @@ from bpy.props import BoolProperty, EnumProperty, IntVectorProperty, PointerProp
 from bpy.types import PropertyGroup, Scene
 from bpy.utils import register_class, unregister_class
 
+# yapf: disable
+_MODE_KWARGS = dict(
+  items=(
+    ('NODES', "Nodes", "Selected nodes in the current node tree"),
+    ('TREES', "Trees", "All node trees in the current .blend file")),
+  name="Mode",
+  default='NODES',
+  options=set())
+# yapf: enable
+
 
 class NA_PG_Settings(PropertyGroup):
+    arrange_mode: EnumProperty(**_MODE_KWARGS, description="What to arrange")
+
     margin: IntVectorProperty(
       name="Spacing",
       description="Space between nodes",
@@ -22,6 +34,8 @@ class NA_PG_Settings(PropertyGroup):
       description="Reduce link lengths by vertically positioning nodes between their neighbours",
       default=True,
       options=set())
+
+    recenter_mode: EnumProperty(**_MODE_KWARGS, description="What to recenter")
 
     # yapf: disable
     origin: EnumProperty(
