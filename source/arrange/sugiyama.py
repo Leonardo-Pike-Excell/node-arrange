@@ -391,7 +391,7 @@ def route_edges(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> No
             dummy_nodes[dummy_nodes.index(b)] = target
 
         u = from_socket.owner
-        if not u.is_reroute or G.out_degree[u] < 2:  # type: ignore
+        if not u.is_reroute or G.out_degree[u] < 2:
             continue
 
         for e in G.out_edges(u, keys=True):
