@@ -79,7 +79,7 @@ class GNode:
 
     root: GNode
     aligned: GNode
-    cells: tuple[list[int], list[float]] | None
+    inner_shift: float
     sink: GNode
     shift: float
 
@@ -127,10 +127,11 @@ class GNode:
     def reset(self) -> None:
         self.root = self
         self.aligned = self
-        self.cells = None
+        self.inner_shift = 0
 
         self.sink = self
         self.shift = inf
+
         self.y = None  # type: ignore
 
     def corrected_y(self) -> float:

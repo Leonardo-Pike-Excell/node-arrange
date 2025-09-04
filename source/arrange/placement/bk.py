@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # http://dx.doi.org/10.1007/3-540-45848-4_3
+# http://dx.doi.org/10.1007/978-3-319-27261-0_12
 # https://arxiv.org/abs/2008.01252
 
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Collection, Hashable
-from itertools import chain, pairwise
+from collections.abc import Collection, Iterator, Sequence
+from itertools import pairwise
 from math import ceil, floor, inf
 from statistics import fmean
 from typing import cast
@@ -15,8 +16,7 @@ from typing import cast
 import networkx as nx
 
 from ... import config
-from ...utils import group_by
-from ..graph import GNode
+from ..graph import FROM_SOCKET, TO_SOCKET, Edge, GNode, Socket
 
 
 def should_ensure_alignment(G: nx.DiGraph[GNode], v: GNode) -> bool:
@@ -76,22 +76,46 @@ def horizontal_alignment(
                 prev_i = i
 
 
-def precompute_cells(G: nx.DiGraph[Hashable]) -> None:
-    columns = G.graph['columns']
-    blocks = group_by(chain(*columns), key=lambda v: v.root)
-    for block, root in blocks.items():
-        indicies = [columns.index(v.col) for v in block]
-        root.cells = (indicies, [v.height for v in block])
+def iter_block(start: GNode) -> Iterator[GNode]:
+    yield start
+    w = start
+    while (w := w.aligned) != start:
+        yield w
 
 
-def min_separation(u: GNode, v: GNode, is_up: bool) -> float:
-    if is_up:
-        u, v = v, u
+def should_use_inner_shift(v: GNode, w: GNode, is_right: bool) -> bool:
+    if v.is_reroute or w.is_reroute:
+        return True
 
-    assert u.root.cells
-    indicies = u.root.cells[0]
-    heights = [h for i, h in zip(*v.root.cells) if indicies[0] <= i <= indicies[-1]]
-    return max(heights, default=0) + config.MARGIN.y
+    if not is_right:
+        v, w = w, v
+
+    if v.height > w.height and not getattr(w.node, 'hide', False):
+        return False
+
+    return abs(v.height - w.height) > fmean((v.height, w.height)) / 2
+
+
+def inner_shift(G: nx.MultiDiGraph[GNode], is_right: bool, is_up: bool) -> None:
+    for root in {v.root for v in G}:
+        for v, w in pairwise(iter_block(root)):
+            if not should_use_inner_shift(v, w, is_right):
+                w.inner_shift = v.inner_shift
+                continue
+
+            inner_shifts = []
+            for k in G[v][w]:
+                p: Socket = G[v][w][k][FROM_SOCKET]
+                q: Socket = G[v][w][k][TO_SOCKET]
+                if p.owner != v:
+                    p, q = q, p
+
+                if is_up:
+                    inner_shifts.append(v.inner_shift - p._offset_y + q._offset_y)
+                else:
+                    inner_shifts.append(v.inner_shift + p._offset_y - q._offset_y)
+
+            w.inner_shift = fmean(inner_shifts)
 
 
 def place_block(v: GNode, is_up: bool) -> None:
@@ -99,24 +123,29 @@ def place_block(v: GNode, is_up: bool) -> None:
         return
 
     v.y = 0
+    initial = True
     w = v
     while True:
-        if (i := w.col.index(w)) > 0:
-            u = w.col[i - 1].root
+        i = w.col.index(w)
+        if i > 0:
+            n = w.col[i - 1]
+            u = n.root
             place_block(u, is_up)
 
             if v.sink == v:
                 v.sink = u.sink
 
             if v.sink == u.sink:
-                v.y = max(v.y, u.y + min_separation(u, v, is_up))
+                delta_l = n.height + config.MARGIN.y if is_up else w.height + config.MARGIN.y
+                s_b = u.y + n.inner_shift - w.inner_shift + delta_l
+                v.y = s_b if initial else max(v.y, s_b)
+                initial = False
 
         w = w.aligned
         if w == v:
             break
 
-    while w.aligned != v:
-        w = w.aligned
+    while (w := w.aligned) != v:
         w.y = v.y
         w.sink = v.sink
 
@@ -127,7 +156,7 @@ def vertical_compaction(G: nx.DiGraph[GNode], is_up: bool) -> None:
             place_block(v, is_up)
 
     columns = G.graph['columns']
-    neighborings = defaultdict(set)
+    neighborings: defaultdict[tuple[GNode, ...], set[Edge]] = defaultdict(set)
 
     for col in columns:
         for v, u in pairwise(reversed(col)):
@@ -139,17 +168,22 @@ def vertical_compaction(G: nx.DiGraph[GNode], is_up: bool) -> None:
             col[0].sink.shift = 0
 
         for u, v in neighborings[tuple(col)]:
-            y = v.y - (u.y + min_separation(u, v, is_up))
-            u.sink.shift = min(u.sink.shift, v.sink.shift + y)
+            delta_l = u.height + config.MARGIN.y if is_up else v.height + config.MARGIN.y
+            s_c = v.y + v.inner_shift - u.y - u.inner_shift - delta_l
+            u.sink.shift = min(u.sink.shift, v.sink.shift + s_c)
 
     for v in G:
-        v.y += v.sink.shift
+        v.y += v.sink.shift + v.inner_shift
 
 
-def balance(layouts: list[list[float]]) -> None:
-    smallest_layout = min(layouts, key=lambda a: max(a) - min(a))
+def balance(G: nx.DiGraph[GNode], layouts: list[list[float]]) -> None:
 
-    movement = min(smallest_layout)
+    def min_y(layout: Sequence[float]) -> float:
+        return min([y - v.height for v, y in zip(G, layout)])
+
+    smallest_layout = min(layouts, key=lambda l: max(l) - min_y(l))
+
+    movement = min_y(smallest_layout)
     for i in range(len(smallest_layout)):
         smallest_layout[i] -= movement
 
@@ -157,13 +191,13 @@ def balance(layouts: list[list[float]]) -> None:
         if layout == smallest_layout:
             continue
 
-        func = min if i % 2 != 1 else max
+        func = min_y if i % 2 != 1 else max
         movement = func(smallest_layout) - func(layout)
         for j in range(len(layout)):
             layout[j] += movement
 
 
-def bk_assign_y_coords(G: nx.DiGraph[GNode]) -> None:
+def bk_assign_y_coords(G: nx.MultiDiGraph[GNode]) -> None:
     columns = G.graph['columns']
     for col in columns:
         col.reverse()
@@ -175,8 +209,9 @@ def bk_assign_y_coords(G: nx.DiGraph[GNode]) -> None:
         columns.reverse()
         for dir_y in (-1, 1):
             horizontal_alignment(G, marked_edges)
-            precompute_cells(G)  # type: ignore
-            vertical_compaction(G, dir_y == 1)
+            is_up = dir_y == 1
+            inner_shift(G, dir_x == 1, is_up)
+            vertical_compaction(G, is_up)
             layouts.append([v.y * -dir_y for v in G])
 
             for v in G:
@@ -193,7 +228,7 @@ def bk_assign_y_coords(G: nx.DiGraph[GNode]) -> None:
             v.y = y
         return
 
-    balance(layouts)
+    balance(G, layouts)
     for i, v in enumerate(G):
         values = [l[i] for l in layouts]
         values.sort()
