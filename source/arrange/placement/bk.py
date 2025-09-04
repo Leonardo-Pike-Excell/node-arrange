@@ -40,12 +40,15 @@ def marked_conflicts(G: nx.DiGraph[GNode]) -> set[frozenset[GNode]]:
 
             while l <= l_1:
                 v = col2[l]
+                l += 1
+
+                if should_ensure_alignment(G, v):
+                    continue
+
                 for pred in G.pred[v]:
                     k = pred.col.index(pred)
                     if k < k_0 or k > k_1:
                         marked_edges.add(frozenset((pred, v)))
-
-                l += 1
 
             k_0 = k_1
 
