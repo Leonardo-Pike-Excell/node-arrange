@@ -8,7 +8,7 @@ from enum import Enum, auto
 from functools import cached_property
 from itertools import chain, pairwise, product
 from math import inf
-from typing import TYPE_CHECKING, Any, Literal, Sequence, TypeGuard
+from typing import Any, Literal, Sequence, TypeGuard
 
 import bpy
 import networkx as nx
@@ -26,9 +26,6 @@ from ..utils import (
   group_by,
 )
 from .structs import bNodeSocket
-
-if TYPE_CHECKING:
-    from .placement.linear_segments import Segment
 
 
 class GType(Enum):
@@ -75,8 +72,6 @@ class GNode:
     x: float
     y: float
 
-    segment: Segment
-
     root: GNode
     aligned: GNode
     inner_shift: float
@@ -118,8 +113,6 @@ class GNode:
 
         self.x = None  # type: ignore
         self.reset()
-
-        self.segment = None  # type: ignore
 
     def __hash__(self) -> int:
         return id(self)
