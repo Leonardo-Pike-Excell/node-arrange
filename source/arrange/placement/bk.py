@@ -19,17 +19,14 @@ from ...utils import group_by
 from ..graph import GNode
 
 
-def should_ensure_alignment(G: nx.DiGraph[GNode], u: GNode) -> bool:
-    if u.is_reroute:
-        return any(z.is_reroute for z in G.pred[u])
-
-    # Not in original paper
-    return G.in_degree[u] == 1 and G.out_degree[u] < 2
+def should_ensure_alignment(G: nx.DiGraph[GNode], v: GNode) -> bool:
+    return v.is_reroute and any(u.is_reroute for u in G.pred[v])
 
 
 def marked_conflicts(G: nx.DiGraph[GNode]) -> set[frozenset[GNode]]:
+    columns = G.graph['columns']
     marked_edges = set()
-    for col1, col2 in pairwise(reversed(G.graph['columns'][1:-1])):
+    for i, col2 in enumerate(columns[1:-1], 1):
         k_0 = 0
         l = 0
         for l_1, u in enumerate(col2):
@@ -37,7 +34,7 @@ def marked_conflicts(G: nx.DiGraph[GNode]) -> set[frozenset[GNode]]:
                 upper_nbr = next(iter(G.pred[u]))
                 k_1 = upper_nbr.col.index(upper_nbr)
             elif u == col2[-1]:
-                k_1 = len(col1) - 1
+                k_1 = len(columns[i - 1]) - 1
             else:
                 continue
 
