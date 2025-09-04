@@ -7,42 +7,42 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
 from itertools import pairwise
 from math import ceil, floor, inf
 from statistics import fmean
-from typing import cast
+from typing import Any, cast
 
 import networkx as nx
 
 from ... import config
-from ..graph import FROM_SOCKET, TO_SOCKET, Edge, GNode, Socket
+from ..graph import FROM_SOCKET, TO_SOCKET, Edge, GNode, GType, Socket
 
 
-def should_ensure_alignment(G: nx.DiGraph[GNode], v: GNode) -> bool:
-    return v.is_reroute and any(u.is_reroute for u in G.pred[v])
-
-
-def marked_conflicts(G: nx.DiGraph[GNode]) -> set[frozenset[GNode]]:
+def marked_conflicts(
+  G: nx.DiGraph[GNode],
+  *,
+  should_ensure_alignment: Callable[[GNode], Any],
+) -> set[frozenset[GNode]]:
     columns = G.graph['columns']
     marked_edges = set()
-    for i, col2 in enumerate(columns[1:-1], 1):
+    for i, col in enumerate(columns[1:], 1):
         k_0 = 0
         l = 0
-        for l_1, u in enumerate(col2):
-            if should_ensure_alignment(G, u):
+        for l_1, u in enumerate(col):
+            if should_ensure_alignment(u):
                 upper_nbr = next(iter(G.pred[u]))
                 k_1 = upper_nbr.col.index(upper_nbr)
-            elif u == col2[-1]:
+            elif u == col[-1]:
                 k_1 = len(columns[i - 1]) - 1
             else:
                 continue
 
             while l <= l_1:
-                v = col2[l]
+                v = col[l]
                 l += 1
 
-                if should_ensure_alignment(G, v):
+                if should_ensure_alignment(v):
                     continue
 
                 for pred in G.pred[v]:
@@ -202,7 +202,11 @@ def bk_assign_y_coords(G: nx.MultiDiGraph[GNode]) -> None:
     for col in columns:
         col.reverse()
 
-    marked_edges = marked_conflicts(G)
+    is_incident_to_inner_segment = lambda v: v.is_reroute and any(u.is_reroute for u in G.pred[v])
+    is_incident_to_vertical_border = lambda v: v.type == GType.VERTICAL_BORDER and G.pred[v]
+    marked_edges = marked_conflicts(G, should_ensure_alignment=is_incident_to_inner_segment)
+    marked_edges |= marked_conflicts(G, should_ensure_alignment=is_incident_to_vertical_border)
+
     layouts = []
     for dir_x in (-1, 1):
         G = nx.reverse_view(G)  # type: ignore

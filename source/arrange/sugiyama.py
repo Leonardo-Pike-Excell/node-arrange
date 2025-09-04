@@ -32,7 +32,6 @@ from .graph import (
 )
 from .ordering import minimize_crossings
 from .placement.bk import bk_assign_y_coords
-from .placement.linear_segments import linear_segments_assign_y_coords
 from .ranking import compute_ranks
 
 # -------------------------------------------------------------------
@@ -579,12 +578,9 @@ def sugiyama_layout(ntree: NodeTree) -> None:
     add_columns(G)
     minimize_crossings(G, T)
 
-    if len(CG.S) == 1:
-        bk_assign_y_coords(G)
-    else:
-        CG.add_vertical_border_nodes()
-        linear_segments_assign_y_coords(CG)
-        CG.remove_nodes_from([v for v in G if v.type == GType.VERTICAL_BORDER])
+    CG.add_vertical_border_nodes()
+    bk_assign_y_coords(G)
+    CG.remove_nodes_from([v for v in G if v.type == GType.VERTICAL_BORDER])
 
     align_reroutes_with_sockets(CG)
     assign_x_coords(G, T)
