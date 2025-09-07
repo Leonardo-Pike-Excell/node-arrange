@@ -91,6 +91,12 @@ def should_use_inner_shift(v: GNode, w: GNode, is_right: bool) -> bool:
     if v.is_reroute or w.is_reroute:
         return True
 
+    if config.SETTINGS.socket_alignment == 'NONE':
+        return False
+
+    if config.SETTINGS.socket_alignment == 'FULL':
+        return True
+
     if not is_right:
         v, w = w, v
 
@@ -264,6 +270,7 @@ def balance(G: nx.DiGraph[GNode], layouts: list[list[float]]) -> None:
 
 
 _ITER_LIMIT = 20
+_DIRECTION_TO_IDX = {'LEFT_DOWN': 0, 'LEFT_UP': 1, 'RIGHT_DOWN': 2, 'RIGHT_UP': 3}
 
 
 def bk_assign_y_coords(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> None:
@@ -307,13 +314,13 @@ def bk_assign_y_coords(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]
     for col in columns:
         col.reverse()
 
-    if not config.SETTINGS.balance:
-        for v, y in zip(G, layouts[1]):
+    if config.SETTINGS.direction == 'BALANCED':
+        balance(G, layouts)
+        for i, v in enumerate(G):
+            values = [l[i] for l in layouts]
+            values.sort()
+            v.y = fmean(values[1:3])
+    else:
+        i = _DIRECTION_TO_IDX[config.SETTINGS.direction]
+        for v, y in zip(G, layouts[i]):
             v.y = y
-        return
-
-    balance(G, layouts)
-    for i, v in enumerate(G):
-        values = [l[i] for l in layouts]
-        values.sort()
-        v.y = fmean(values[1:3])

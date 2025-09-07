@@ -33,7 +33,13 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
         else:
             layout.operator("node.na_batch_arrange")
         layout.prop(settings, "margin")
-        layout.prop(settings, "balance")
+
+        header, panel = layout.panel("alignment", default_closed=True)
+        header.label(text="Alignment")
+        if panel:
+            col = panel.column()
+            col.prop(settings, "direction", text="Nodes")
+            col.prop(settings, "socket_alignment", text="Sockets")
 
 
 class NA_PT_ClearLocations(NodePanel, Panel):

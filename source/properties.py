@@ -2,7 +2,14 @@
 
 # type: ignore
 
-from bpy.props import BoolProperty, EnumProperty, IntVectorProperty, PointerProperty
+from bpy.props import (
+  BoolProperty,
+  EnumProperty,
+  FloatProperty,
+  IntProperty,
+  IntVectorProperty,
+  PointerProperty,
+)
 from bpy.types import PropertyGroup, Scene
 from bpy.utils import register_class, unregister_class
 
@@ -29,9 +36,35 @@ class NA_PG_Settings(PropertyGroup):
       subtype='XYZ',
       size=2)
 
-    balance: BoolProperty(
-      name="Balance",
-      description="Reduce link lengths by vertically positioning nodes between their neighbours",
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    # yapf: disable
+    direction: EnumProperty(
+      items = (
+        ('LEFT_DOWN', "Bottom Left", ""),
+        ('RIGHT_DOWN', "Bottom Right", ""),
+        ('LEFT_UP', "Top Left", ""),
+        ('RIGHT_UP', "Top Right", ""),
+        None,
+        ('BALANCED',
+        "Balanced",
+        "Combine four extreme layouts, evening out their directional tendencies")),
+      name="Node Alignment",
+      description="Direction of layout",
+      default='BALANCED',
+      options=set())
+
+    socket_alignment: EnumProperty(
+      items=(
+        ('NONE', "None", "Only try to align the tops of nodes"),
+        ('MODERATE', "Moderate", "Align sockets or node tops depending on the heights of the nodes"),
+        ('FULL', "Full", "Always try to align sockets with other sockets")),
+      name="Socket Alignment",
+      description="Method to align sockets with other sockets",
+      default='MODERATE',
+      options=set())
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       default=True,
       options=set())
 
