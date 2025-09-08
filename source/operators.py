@@ -69,10 +69,17 @@ def get_all_ntrees() -> list[bpy.types.ID]:
 
 
 def batch_modify(bl_data: Iterable[bpy.types.ID], cls: Type[Operator], *, redraw_ui: bool) -> int:
-    assert bpy.context
+    context = cast(Context, bpy.context)
+    area = context.area
+    space = cast(bpy.types.SpaceNodeEditor, context.space_data)
 
-    space = cast(bpy.types.SpaceNodeEditor, bpy.context.space_data)
     path = space.path
+    old_path = [p.node_tree for p in path]
+
+    if redraw_ui:
+        old_ui_type = area.ui_type
+        area.ui_type = 'ShaderNodeTree'
+
     op = attrgetter(cls.bl_idname)(bpy.ops)
     count = 0
     for id_data in bl_data:
@@ -81,8 +88,10 @@ def batch_modify(bl_data: Iterable[bpy.types.ID], cls: Type[Operator], *, redraw
 
         ntree = cast(bpy.types.NodeTree, getattr(id_data, 'node_tree', id_data))
         path.append(ntree)
+        if space.edit_tree != ntree:
+            path.append(ntree)
 
-        if not cls.poll(bpy.context):
+        if not cls.poll(context):
             path.pop()
             continue
 
@@ -91,16 +100,26 @@ def batch_modify(bl_data: Iterable[bpy.types.ID], cls: Type[Operator], *, redraw
         for node in nodes:
             node.select = True
 
-        if redraw_ui and nodes and nodes[0].dimensions.x == 0:
+        old_view_center = ntree.view_center.copy()
+        if redraw_ui:
             bpy.ops.wm.redraw_timer(type='DRAW', iterations=0)
 
         op()
         count += 1
 
+        vec = ntree.view_center - old_view_center
+        bpy.ops.transform.translate(value=(*vec, 0))
+
         for node in nodes:
             node.select = node in old_selection
 
         path.pop()
+
+    if redraw_ui:
+        path.clear()
+        area.ui_type = old_ui_type
+        for ntree in old_path:
+            path.append(ntree)
 
     return count
 
