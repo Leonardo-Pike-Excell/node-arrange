@@ -504,17 +504,11 @@ def add_reroute(v: GNode) -> None:
     v.type = GType.NODE
 
 
-def realize_edges(G: nx.DiGraph[GNode], v: GNode) -> None:
-    assert is_real(v)
+def realize_edges(G: nx.DiGraph[GNode]) -> None:
     links = get_ntree().links
-
-    if G.pred[v]:
-        pred_output = next(iter(G.in_edges(v, data=FROM_SOCKET)))[2]
-        links.new(pred_output.bpy, v.node.inputs[0])
-
-    for _, w, succ_input in G.out_edges(v, data=TO_SOCKET):
-        if is_real(w):
-            links.new(v.node.outputs[0], succ_input.bpy)
+    for u, v, d in G.edges.data():
+        if u.is_reroute or v.is_reroute:
+            links.new(d[FROM_SOCKET].bpy, d[TO_SOCKET].bpy)
 
 
 def realize_dummy_nodes(CG: ClusterGraph) -> None:
@@ -525,7 +519,7 @@ def realize_dummy_nodes(CG: ClusterGraph) -> None:
             if not is_real(v):
                 add_reroute(v)
 
-            realize_edges(CG.G, v)
+    realize_edges(CG.G)
 
 
 def restore_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
@@ -536,6 +530,10 @@ def restore_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
         assert multi_input
 
         as_links = {l.from_socket: l for l in links if l.to_socket == multi_input}
+
+        for output in {s.bpy for s in H.pred[socket]} - as_links.keys():
+            assert output
+            as_links[output] = links.new(output, multi_input)
 
         if len(as_links) != len({l.multi_input_sort_id for l in as_links.values()}):
             for link in as_links.values():
