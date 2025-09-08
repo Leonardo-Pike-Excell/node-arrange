@@ -202,44 +202,64 @@ def add_columns(G: nx.DiGraph[GNode]) -> None:
 # -------------------------------------------------------------------
 
 
+def get_foreign_sockets_of(path: Sequence[GNode], G: nx.DiGraph[GNode]) -> list[Socket]:
+    inputs = G.in_edges(path[0], data=FROM_SOCKET)
+    outputs = G.out_edges(path[-1], data=TO_SOCKET)
+    return [e[2] for e in chain(inputs, outputs)]
+
+
 def align_reroutes_with_sockets(CG: ClusterGraph) -> None:
     reroute_paths: dict[tuple[GNode, ...], list[Socket]] = {}
-    for path in get_reroute_paths(CG, preserve_reroute_clusters=False, must_be_aligned=True):
-        inputs = CG.G.in_edges(path[0], data=FROM_SOCKET)
-        outputs = CG.G.out_edges(path[-1], data=TO_SOCKET)
-        reroute_paths[tuple(path)] = [e[2] for e in (*inputs, *outputs)]
+    for p in get_reroute_paths(CG, preserve_reroute_clusters=False, must_be_aligned=True):
+        reroute_paths[tuple(p)] = get_foreign_sockets_of(p, CG.G)
+
+    reroute_path_of = {v: p for p in reroute_paths for v in p}
 
     while True:
         changed = False
-        for path, foreign_sockets in tuple(reroute_paths.items()):
-            y = path[0].y
+        for p1, foreign_sockets in tuple(reroute_paths.items()):
+            if p1 not in reroute_paths:
+                continue
+
+            y = p1[0].y
             foreign_sockets.sort(key=lambda s: abs(y - s.y))
             foreign_sockets.sort(key=lambda s: y == s.owner.y, reverse=True)
+            foreign_sockets.sort(key=lambda s: s.owner.is_reroute, reverse=True)
 
-            if not foreign_sockets or y - foreign_sockets[0].y == 0:
-                del reroute_paths[path]
+            if not foreign_sockets or y == foreign_sockets[0].y:
+                del reroute_paths[p1]
                 continue
 
             movement = y - foreign_sockets[0].y
             y -= movement
             if movement < 0:
                 above_y_vals = [
-                  (w := v.col[v.col.index(v) - 1]).y - w.height for v in path if v != v.col[0]]
-                if above_y_vals and y > min(above_y_vals):
+                  (n := v.col[v.col.index(v) - 1]).y - n.height for v in p1 if v != v.col[0]]
+                if above_y_vals and y > min(above_y_vals) - config.MARGIN.y:
                     continue
             else:
-                below_y_vals = [v.col[v.col.index(v) + 1].y for v in path if v != v.col[-1]]
-                if below_y_vals and max(below_y_vals) > y - path[0].height:
+                below_y_vals = [v.col[v.col.index(v) + 1].y for v in p1 if v != v.col[-1]]
+                if below_y_vals and max(below_y_vals) + config.MARGIN.y > y - p1[0].height:
                     continue
 
-            for v in path:
+            for v in p1:
                 v.y -= movement
+
+            w = foreign_sockets[0].owner
+            if w.is_reroute:
+                p2 = reroute_path_of[w]
+                p3 = p1 + p2 if w.rank > p1[-1].rank else p2 + p1
+                reroute_paths[p3] = get_foreign_sockets_of(p3, CG.G)
+                del reroute_paths[p1]
+                reroute_paths.pop(p2, None)
+                for v in p3:
+                    reroute_path_of[v] = p3
 
             changed = True
 
         if not changed:
             if reroute_paths:
-                for path, foreign_sockets in reroute_paths.items():
+                for foreign_sockets in reroute_paths.values():
                     del foreign_sockets[0]
             else:
                 break
