@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import cached_property
@@ -141,7 +141,7 @@ class _RealGNode(GNode):
 @dataclass(slots=True)
 class Cluster:
     node: NodeFrame | None
-    cluster: Cluster | None = None
+    cluster: Cluster
     nesting_level: int | None = None
     cr: CrossingReduction = field(default_factory=CrossingReduction)
     left: GNode = field(init=False)
@@ -220,6 +220,78 @@ def add_dummy_nodes_to_edge(
         links.remove(next(l for l in links if (l.from_socket, l.to_socket) == target_link))
 
 
+def assign_clusters(
+  dummy_nodes: Iterable[GNode],
+  start: Cluster,
+  stop: Cluster,
+  is_within_cluster: Callable[[GNode, Cluster], bool],
+) -> None:
+    c = start
+    for w in dummy_nodes:
+        while c != stop and not is_within_cluster(w, c):
+            c = c.cluster
+
+        if c == stop:
+            break
+
+        w.cluster = c
+
+
+def improve_cluster_assignment(e: Edge, dummy_nodes: Sequence[GNode]) -> None:
+    if config.SETTINGS.keep_reroutes_outside_frames:
+        return
+
+    u, v = e
+    assert u.cluster and v.cluster
+    c1 = u.cluster
+    c2 = v.cluster
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    if not (c1.node and c2.node) or c1.right.rank >= c2.left.rank:
+        if c2.node and u.rank < c2.left.rank:
+            c1 = None
+            while c2.cluster.node and u.rank < c2.cluster.left.rank:
+                c2 = c2.cluster
+        elif c1.node and v.rank > c1.right.rank:
+            c2 = None
+            while c1.cluster.node and v.rank > c1.cluster.right.rank:
+                c1 = c1.cluster
+        else:
+            return
+    else:
+        while True:
+            parent1 = c1.cluster
+            if parent1.node and parent1.right.rank < c2.left.rank:
+                c1 = parent1
+                continue
+
+            parent2 = c2.cluster
+            if parent2.node and c1.right.rank < parent2.left.rank:
+                c2 = parent2
+                continue
+
+            break
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    if c1:
+        assign_clusters(
+          dummy_nodes,
+          u.cluster,
+          c1.cluster,
+          lambda w, c: w.rank <= c.right.rank,
+        )
+
+    if c2:
+        assign_clusters(
+          reversed(dummy_nodes),
+          v.cluster,
+          c2.cluster,
+          lambda w, c: w.rank >= c.left.rank,
+        )
+
+
 # https://api.semanticscholar.org/CorpusID:14932050
 class ClusterGraph:
     G: nx.MultiDiGraph[GNode]
@@ -257,7 +329,7 @@ class ClusterGraph:
     def merge_edges(self) -> None:
         G = self.G
         T = self.T
-        groups = group_by(G.edges(keys=True), key=lambda e: G.edges[e][FROM_SOCKET])
+        groups = group_by(G.edges, key=lambda e: G.edges[e][FROM_SOCKET])
         edges: tuple[MultiEdge, ...]
         for edges, from_socket in groups.items():
             long_edges = [(u, v, k) for u, v, k in edges if v.rank - u.rank > 1]
@@ -275,7 +347,6 @@ class ClusterGraph:
                     assert u.cluster
                     c = lca.get((u, v), u.cluster)
                     w = GNode(None, c, GType.DUMMY, v.rank - 1)
-                    T.add_edge(c, w)
                     dummy_nodes.append(w)
 
                 add_dummy_nodes_to_edge(G, (u, v, k), [w])
@@ -285,11 +356,22 @@ class ClusterGraph:
                 add_dummy_edge(G, *pair)
 
             w = dummy_nodes[0]
-            G.add_edge(u, dummy_nodes[0], from_socket=from_socket, to_socket=Socket(w, 0, False))
+            G.add_edge(u, w, from_socket=from_socket, to_socket=Socket(w, 0, False))
+
+            improve_cluster_assignment((u, v), dummy_nodes)
+            for w in dummy_nodes:
+                T.add_edge(w.cluster, w)
 
     def insert_dummy_nodes(self) -> None:
         G = self.G
         T = self.T
+
+        # -------------------------------------------------------------------
+
+        for c in self.S:
+            descendants = [v for v in nx.descendants(T, c) if v.type != GType.CLUSTER]
+            c.left = min(descendants, key=lambda v: v.rank)
+            c.right = max(descendants, key=lambda v: v.rank)
 
         # -------------------------------------------------------------------
 
@@ -301,10 +383,14 @@ class ClusterGraph:
             dummy_nodes = []
             for i in range(u.rank + 1, v.rank):
                 w = GNode(None, c, GType.DUMMY, i)
-                T.add_edge(c, w)
                 dummy_nodes.append(w)
 
+            improve_cluster_assignment((u, v), dummy_nodes)
             add_dummy_nodes_to_edge(G, (u, v, k), dummy_nodes)
+
+        for w in G.nodes - T.nodes:
+            assert w.cluster
+            T.add_edge(w.cluster, w)
 
         # -------------------------------------------------------------------
 

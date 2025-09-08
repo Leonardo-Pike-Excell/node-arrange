@@ -49,7 +49,9 @@ def precompute_links(ntree: NodeTree) -> None:
 
 
 def get_multidigraph() -> nx.MultiDiGraph[GNode]:
-    parents = {n.parent: Cluster(cast(NodeFrame | None, n.parent)) for n in get_ntree().nodes}
+    parents = {
+      n.parent: Cluster(cast(NodeFrame | None, n.parent), None)  # type: ignore
+      for n in get_ntree().nodes}
     for c in parents.values():
         if c.node:
             c.cluster = parents[c.node.parent]
