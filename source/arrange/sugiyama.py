@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterator, Sequence
 from itertools import chain
+from math import isclose
 from statistics import fmean
 from typing import cast
 
@@ -453,27 +454,45 @@ def route_edges(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> No
 
 # -------------------------------------------------------------------
 
+_Y_TOL = 5
+
 
 def simplify_path(CG: ClusterGraph, path: list[GNode]) -> None:
+    G = CG.G
+    pred_output = lambda w: next(iter(G.in_edges(w, data=FROM_SOCKET)))[2]
+    succ_input = lambda w: next(iter(G.out_edges(w, data=TO_SOCKET)))[2]
+
     if len(path) == 1:
-        return
+        v = path[0]
+
+        if not G.pred[v] or G.out_degree[v] != 1 or v.col is None or is_real(v):
+            return
+
+        p = pred_output(v)
+        q = succ_input(v)
+        if isclose(p.y, q.y, rel_tol=0, abs_tol=_Y_TOL):
+            G.add_edge(p.owner, q.owner, from_socket=p, to_socket=q)
+            CG.remove_nodes_from(path)
+            path.clear()
 
     u, *between, v = path
-    G = CG.G
 
-    if G.pred[u] and (s := next(iter(G.in_edges(u, data=FROM_SOCKET)))[2]).y == u.y:
-        G.add_edge(s.owner, v, from_socket=s, to_socket=Socket(v, 0, False))
+    if G.pred[u] and isclose((p := pred_output(u)).y, u.y, rel_tol=0, abs_tol=_Y_TOL):
         between.append(u)
-    elif G.out_degree[v] == 1 and v.y == (s := next(iter(G.out_edges(v, data=TO_SOCKET)))[2]).y:
-        G.add_edge(u, s.owner, from_socket=Socket(u, 0, True), to_socket=s)
+    else:
+        p = Socket(u, 0, True)
+
+    if G.out_degree[v] == 1 and isclose(v.y, (q := succ_input(v)).y, rel_tol=0, abs_tol=_Y_TOL):
         between.append(v)
-    elif between:
-        add_dummy_edge(G, u, v)
+    else:
+        q = Socket(v, 0, False)
+
+    if p.owner != u or q.owner != v or between:
+        G.add_edge(p.owner, q.owner, from_socket=p, to_socket=q)
 
     CG.remove_nodes_from(between)
     for v in between:
-        if v not in G:
-            path.remove(v)
+        path.remove(v)
 
 
 def add_reroute(v: GNode) -> None:
