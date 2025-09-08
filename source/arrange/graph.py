@@ -93,15 +93,17 @@ class GNode:
         self.cluster = cluster
         self.type = type
         self.rank = rank  # type: ignore
-        self.is_reroute = type == GType.DUMMY or (real and node.bl_idname == 'NodeReroute')
 
-        if self.is_reroute:
+        if type == GType.DUMMY or (real and node.bl_idname == 'NodeReroute'):
+            self.is_reroute = True
             self.width = REROUTE_DIM.x
             self.height = REROUTE_DIM.y
         elif real:
+            self.is_reroute = False
             self.width = dimensions(node).x
             self.height = get_top(node) - get_bottom(node)
         else:
+            self.is_reroute = type == GType.VERTICAL_BORDER
             self.width = 0
             self.height = 0
 
