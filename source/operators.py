@@ -118,7 +118,8 @@ def batch_modify(bl_data: Iterable[bpy.types.ID], cls: Type[Operator], *, redraw
     if redraw_ui:
         path.clear()
         area.ui_type = old_ui_type
-        for ntree in old_path:
+        path.start(old_path[0])
+        for ntree in old_path[1:]:
             path.append(ntree)
 
     return count
