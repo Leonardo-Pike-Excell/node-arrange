@@ -65,6 +65,7 @@ class GNode:
     rank: int
     po_num: int
     lowest_po_num: int
+    is_fill_dummy: bool
 
     col: list[GNode]
     cr: CrossingReduction
@@ -109,6 +110,7 @@ class GNode:
 
         self.po_num = None  # type: ignore
         self.lowest_po_num = None  # type: ignore
+        self.is_fill_dummy = False
 
         self.col = None  # type: ignore
         self.cr = CrossingReduction()
@@ -402,6 +404,7 @@ class ClusterGraph:
             for i, j in pairwise(ranks):
                 for k in range(i + 1, j):
                     v = GNode(None, c, GType.DUMMY, k)
+                    v.is_fill_dummy = True
                     G.add_node(v)
                     T.add_edge(c, v)
 
