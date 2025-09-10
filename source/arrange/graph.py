@@ -400,20 +400,10 @@ class ClusterGraph:
 
             ranks = sorted({v.rank for v in nx.descendants(T, c) if v.type != GType.CLUSTER})
             for i, j in pairwise(ranks):
-                if j - i == 1:
-                    continue
-
-                u = None
                 for k in range(i + 1, j):
-                    v = GNode(None, c, GType.VERTICAL_BORDER, k)
+                    v = GNode(None, c, GType.DUMMY, k)
+                    G.add_node(v)
                     T.add_edge(c, v)
-
-                    if u:
-                        add_dummy_edge(G, u, v)
-                    else:
-                        G.add_node(v)
-
-                    u = v
 
     def add_vertical_border_nodes(self) -> None:
         T = self.T
