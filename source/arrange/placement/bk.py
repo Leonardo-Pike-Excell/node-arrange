@@ -134,28 +134,26 @@ def place_block(v: GNode, is_up: bool) -> None:
 
     v.y = 0
     initial = True
-    w = v
-    while True:
+    for w in iter_block(v):
         i = w.col.index(w)
-        if i > 0:
-            n = w.col[i - 1]
-            u = n.root
-            place_block(u, is_up)
 
-            if v.sink == v:
-                v.sink = u.sink
+        if i == 0:
+            continue
 
-            if v.sink == u.sink:
-                delta_l = n.height + config.MARGIN.y if is_up else w.height + config.MARGIN.y
-                s_b = u.y + n.inner_shift - w.inner_shift + delta_l
-                v.y = s_b if initial else max(v.y, s_b)
-                initial = False
+        n = w.col[i - 1]
+        u = n.root
+        place_block(u, is_up)
 
-        w = w.aligned
-        if w == v:
-            break
+        if v.sink == v:
+            v.sink = u.sink
 
-    while (w := w.aligned) != v:
+        if v.sink == u.sink:
+            delta_l = n.height + config.MARGIN.y if is_up else w.height + config.MARGIN.y
+            s_b = u.y + n.inner_shift - w.inner_shift + delta_l
+            v.y = s_b if initial else max(v.y, s_b)
+            initial = False
+
+    for w in iter_block(v):
         w.y = v.y
         w.sink = v.sink
 
