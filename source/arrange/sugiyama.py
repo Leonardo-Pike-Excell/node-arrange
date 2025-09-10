@@ -477,6 +477,8 @@ def simplify_path(CG: ClusterGraph, path: list[GNode]) -> None:
             CG.remove_nodes_from(path)
             path.clear()
 
+        return
+
     u, *between, v = path
 
     if G.pred[u] and isclose((p := pred_output(u)).y, u.y, rel_tol=0, abs_tol=_Y_TOL):
