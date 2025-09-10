@@ -416,10 +416,10 @@ class ClusterGraph:
             if not c.node:
                 continue
 
-            nodes = [v for v in nx.descendants(T, c) if v.type != GType.CLUSTER]
+            descendants = [v for v in nx.descendants(T, c) if v.type != GType.CLUSTER]
             lower_border_nodes = []
             upper_border_nodes = []
-            for subcol in group_by(nodes, key=lambda v: columns.index(v.col), sort=True):
+            for subcol in group_by(descendants, key=lambda v: columns.index(v.col), sort=True):
                 col = subcol[0].col
                 indices = [col.index(v) for v in subcol]
 
