@@ -27,6 +27,8 @@ from ..utils import (
 )
 from .structs import bNodeSocket
 
+# -------------------------------------------------------------------
+
 
 class GType(Enum):
     NODE = auto()
@@ -47,10 +49,6 @@ class CrossingReduction:
 
 
 _NonCluster = Literal[GType.NODE, GType.DUMMY, GType.HORIZONTAL_BORDER, GType.VERTICAL_BORDER]
-
-
-def is_real(v: GNode | Cluster) -> TypeGuard[_RealGNode]:
-    return isinstance(v.node, Node)
 
 
 class GNode:
@@ -138,6 +136,14 @@ class GNode:
 
 class _RealGNode(GNode):
     node: Node  # type: ignore
+
+
+def is_real(v: GNode | Cluster) -> TypeGuard[_RealGNode]:
+    return isinstance(v.node, Node)
+
+
+Edge = tuple[GNode, GNode]
+MultiEdge = tuple[GNode, GNode, int]
 
 
 @dataclass(slots=True)
@@ -485,9 +491,6 @@ class Socket:
     def y(self) -> float:
         return self.owner.y + self._offset_y
 
-
-Edge = tuple[GNode, GNode]
-MultiEdge = tuple[GNode, GNode, int]
 
 FROM_SOCKET = 'from_socket'
 TO_SOCKET = 'to_socket'
