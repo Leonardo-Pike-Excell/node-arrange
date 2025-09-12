@@ -69,12 +69,6 @@ def get_multidigraph() -> nx.MultiDiGraph[GNode]:
     return G
 
 
-def get_nesting_relations(v: GNode | Cluster) -> Iterator[tuple[Cluster, GNode | Cluster]]:
-    if c := v.cluster:
-        yield (c, v)
-        yield from get_nesting_relations(c)
-
-
 def save_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
     links = {(l.from_socket, l.to_socket): l for l in get_ntree().links}
     for v, w, d in G.edges.data():
