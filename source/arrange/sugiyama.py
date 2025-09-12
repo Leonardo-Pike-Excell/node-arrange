@@ -29,6 +29,7 @@ from .graph import (
   add_dummy_nodes_to_edge,
   is_real,
   lowest_common_cluster,
+  node_name,
   socket_graph,
 )
 from .ordering import minimize_crossings
@@ -196,8 +197,11 @@ def remove_reroutes(CG: ClusterGraph) -> None:
 def add_columns(G: nx.DiGraph[GNode]) -> None:
     columns = [list(c) for c in group_by(G, key=lambda v: v.rank, sort=True)]
     G.graph['columns'] = columns
+
+    y_loc = lambda v: abs_loc(v.node).y if is_real(v) and nx.is_isolate(G, v) else 0
     for col in columns:
-        col.sort(key=lambda v: abs_loc(v.node).y if is_real(v) else 0, reverse=True)
+        col.sort(key=node_name)
+        col.sort(key=y_loc, reverse=True)
         for v in col:
             v.col = col
 

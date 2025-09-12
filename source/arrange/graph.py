@@ -142,6 +142,10 @@ def is_real(v: GNode | Cluster) -> TypeGuard[_RealGNode]:
     return isinstance(v.node, Node)
 
 
+def node_name(v: GNode) -> str:
+    return getattr(v.node, 'name', '')
+
+
 Edge = tuple[GNode, GNode]
 MultiEdge = tuple[GNode, GNode, int]
 
