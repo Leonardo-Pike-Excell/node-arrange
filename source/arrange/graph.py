@@ -522,3 +522,38 @@ def socket_graph(G: nx.MultiDiGraph[GNode]) -> nx.DiGraph[Socket]:
         H.add_edges_from(product(set(sockets) - outputs, outputs))
 
     return H
+
+
+# -------------------------------------------------------------------
+
+
+def get_reroute_paths(
+  CG: ClusterGraph,
+  function: Callable | None = None,
+  *,
+  preserve_reroute_clusters: bool = True,
+  must_be_aligned: bool = False,
+) -> list[list[GNode]]:
+    G = CG.G
+    reroutes = {v for v in G if v.is_reroute and (not function or function(v))}
+    SG = nx.DiGraph(G.subgraph(reroutes))
+
+    for v in SG:
+        if G.out_degree[v] > 1:
+            SG.remove_edges_from(tuple(SG.out_edges(v)))
+
+    if preserve_reroute_clusters:
+        reroute_clusters = {#
+          c for c in CG.S
+          if all(v.is_reroute for v in CG.T[c] if v.type != GType.CLUSTER)}
+        SG.remove_edges_from([#
+          (u, v) for u, v in SG.edges
+          if u.cluster != v.cluster and {u.cluster, v.cluster} & reroute_clusters])
+
+    if must_be_aligned:
+        SG.remove_edges_from([(u, v) for u, v in SG.edges if u.y != v.y])
+
+    indicies = {v: i for i, v in enumerate(nx.topological_sort(G)) if v in reroutes}
+    paths = [sorted(c, key=lambda v: indicies[v]) for c in nx.weakly_connected_components(SG)]
+    paths.sort(key=lambda p: sum([indicies[v] for v in p]))
+    return paths
