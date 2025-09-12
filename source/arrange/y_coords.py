@@ -15,8 +15,8 @@ from typing import Any, cast
 
 import networkx as nx
 
-from ... import config
-from ..graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, GNode, GType, Socket
+from .. import config
+from .graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, GNode, GType, Socket
 
 
 def marked_conflicts(

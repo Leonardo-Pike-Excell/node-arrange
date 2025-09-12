@@ -31,10 +31,10 @@ from .graph import (
   node_name,
 )
 from .ordering import minimize_crossings
-from .placement.bk import bk_assign_y_coords
 from .ranking import compute_ranks
 from .realize import realize_layout, remove_reroutes
 from .stacking import contracted_node_stacks, expand_node_stack
+from .y_coords import bk_assign_y_coords
 
 # -------------------------------------------------------------------
 
