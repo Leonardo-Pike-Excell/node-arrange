@@ -32,6 +32,7 @@ from .structs import bNodeSocket
 
 class GType(Enum):
     NODE = auto()
+    STACK = auto()
     DUMMY = auto()
     CLUSTER = auto()
     HORIZONTAL_BORDER = auto()
@@ -48,7 +49,12 @@ class CrossingReduction:
         self.barycenter = None
 
 
-_NonCluster = Literal[GType.NODE, GType.DUMMY, GType.HORIZONTAL_BORDER, GType.VERTICAL_BORDER]
+_NonCluster = Literal[
+  GType.NODE,
+  GType.STACK,
+  GType.DUMMY,
+  GType.HORIZONTAL_BORDER,
+  GType.VERTICAL_BORDER,]
 
 
 class GNode:
@@ -148,6 +154,10 @@ def node_name(v: GNode) -> str:
 
 Edge = tuple[GNode, GNode]
 MultiEdge = tuple[GNode, GNode, int]
+
+
+def opposite(v: GNode, e: tuple[GNode, GNode] | tuple[GNode, GNode, ...]) -> GNode:
+    return e[0] if v != e[0] else e[1]
 
 
 @dataclass(slots=True)
@@ -465,6 +475,7 @@ class Socket:
     owner: GNode
     idx: int
     is_output: bool
+    prescribed_offset_y: float | None = field(default=None, hash=False, compare=False)
 
     @property
     def bpy(self) -> NodeSocket | None:
@@ -483,6 +494,9 @@ class Socket:
 
     @cached_property
     def _offset_y(self) -> float:
+        if self.prescribed_offset_y is not None:
+            return self.prescribed_offset_y
+
         v = self.owner
 
         if v.is_reroute or not is_real(v):

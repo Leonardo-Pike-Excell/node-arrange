@@ -74,6 +74,23 @@ class NA_PG_Settings(PropertyGroup):
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+    stack_collapsed: BoolProperty(
+      name="Stack Collapsed Nodes",
+      description="Stack collapsed math and vector math nodes on top of one another",
+      default=False,
+      options=set())
+
+    stack_margin_y_fac: FloatProperty(
+      name="Spacing Y Factor",
+      description="Factor for vertical spacing between stacked nodes",
+      default=0.5,
+      min=0,
+      max=1,
+      subtype='FACTOR',
+      options=set())
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
     recenter_mode: EnumProperty(**_MODE_KWARGS, description="What to recenter")
 
     # yapf: disable

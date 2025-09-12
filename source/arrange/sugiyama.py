@@ -14,6 +14,8 @@ from bpy.types import Node, NodeFrame, NodeTree
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line_2d
 
+from arrange.stacking import contracted_node_stacks, expand_node_stack
+
 from .. import config
 from ..utils import abs_loc, frame_padding, get_ntree, group_by, move
 from .graph import (
@@ -616,6 +618,9 @@ def sugiyama_layout(ntree: NodeTree) -> None:
     save_multi_input_orders(G)
     remove_reroutes(CG)
 
+    if config.SETTINGS.stack_collapsed:
+        node_stacks = contracted_node_stacks(CG)
+
     compute_ranks(CG)
     CG.merge_edges()
     CG.insert_dummy_nodes()
@@ -631,6 +636,10 @@ def sugiyama_layout(ntree: NodeTree) -> None:
     CG.remove_nodes_from([v for v in G if v.type == GType.VERTICAL_BORDER])
     assign_x_coords(G, T)
     route_edges(G, T)
+
+    if config.SETTINGS.stack_collapsed:
+        for node_stack in node_stacks:
+            expand_node_stack(CG, node_stack)
 
     realize_dummy_nodes(CG)
     restore_multi_input_orders(G)

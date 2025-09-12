@@ -47,6 +47,15 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
             col = panel.column(heading="Reroutes")
             col.prop(settings, "keep_reroutes_outside_frames", text="Place Outside Frames")
 
+        header, panel = layout.panel("collapsed_nodes", default_closed=True)
+        header.label(text="Collapsed Nodes")
+        if panel:
+            col = panel.column()
+            col.prop(settings, "stack_collapsed")
+            sub = col.row()
+            sub.active = settings.stack_collapsed
+            sub.prop(settings, "stack_margin_y_fac")
+
 
 class NA_PT_ClearLocations(NodePanel, Panel):
     bl_label = "Recenter"
