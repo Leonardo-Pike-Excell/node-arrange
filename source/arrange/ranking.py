@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import networkx as nx
 
 from ..utils import group_by
-from .graph import GNode, GType, MultiEdge
+from .graph import GNode, GType, MultiEdge, opposite
 
 if TYPE_CHECKING:
     from .sugiyama import ClusterGraph
@@ -85,8 +85,7 @@ def set_post_order_numbers(v: GNode, T: nx.MultiDiGraph[GNode]) -> None:
                 continue
 
             visited.add(e)
-            other = e[0] if w != e[0] else e[1]
-            nums.append(recurse(other))
+            nums.append(recurse(opposite(w, e)))
 
         nonlocal num
         w.po_num = num
