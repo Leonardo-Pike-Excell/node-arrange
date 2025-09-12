@@ -274,6 +274,23 @@ def align_reroutes_with_sockets(CG: ClusterGraph) -> None:
                 break
 
 
+def dissolve_dummy_nodes(CG: ClusterGraph) -> None:
+    paths = get_reroute_paths(
+      CG,
+      lambda v: v.is_reroute and not is_real(v),
+      preserve_reroute_clusters=False,
+    )
+    G = CG.G
+    for path in paths:
+        if G.pred[path[0]]:
+            u, _, o = next(iter(G.in_edges(path[0], data=FROM_SOCKET)))
+            succ_inputs = [e[2] for e in G.out_edges(path[-1], data=TO_SOCKET)]
+            for i in succ_inputs:
+                G.add_edge(u, i.owner, from_socket=o, to_socket=i)
+
+        CG.remove_nodes_from(path)
+
+
 def frame_padding_of_col(
   columns: Sequence[Collection[GNode]],
   i: int,
@@ -616,7 +633,8 @@ def sugiyama_layout(ntree: NodeTree) -> None:
     T = CG.T
 
     save_multi_input_orders(G)
-    remove_reroutes(CG)
+    if config.SETTINGS.add_reroutes:
+        remove_reroutes(CG)
 
     if config.SETTINGS.stack_collapsed:
         node_stacks = contracted_node_stacks(CG)
@@ -632,16 +650,22 @@ def sugiyama_layout(ntree: NodeTree) -> None:
     CG.remove_nodes_from([v for v in G if v.is_fill_dummy])
     bk_assign_y_coords(G, T)
 
+    if not config.SETTINGS.add_reroutes:
+        dissolve_dummy_nodes(CG)
+
     align_reroutes_with_sockets(CG)
     CG.remove_nodes_from([v for v in G if v.type == GType.VERTICAL_BORDER])
     assign_x_coords(G, T)
-    route_edges(G, T)
+    if config.SETTINGS.add_reroutes:
+        route_edges(G, T)
 
     if config.SETTINGS.stack_collapsed:
         for node_stack in node_stacks:
             expand_node_stack(CG, node_stack)
 
-    realize_dummy_nodes(CG)
+    if config.SETTINGS.add_reroutes:
+        realize_dummy_nodes(CG)
+
     restore_multi_input_orders(G)
     realize_locations(G, old_center)
     for c in CG.S:

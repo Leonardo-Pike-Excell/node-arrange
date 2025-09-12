@@ -45,7 +45,10 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
         header.label(text="Reroutes")
         if panel:
             col = panel.column(heading="Reroutes")
-            col.prop(settings, "keep_reroutes_outside_frames", text="Place Outside Frames")
+            col.prop(settings, "add_reroutes", text="Add")
+            sub = col.row()
+            sub.active = settings.add_reroutes
+            sub.prop(settings, "keep_reroutes_outside_frames", text="Place Outside Frames")
 
         header, panel = layout.panel("collapsed_nodes", default_closed=True)
         header.label(text="Collapsed Nodes")
