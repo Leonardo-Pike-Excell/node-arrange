@@ -86,7 +86,7 @@ class NA_PG_Settings(PropertyGroup):
     keep_reroutes_outside_frames: BoolProperty(
       name="Place Reroutes Outside Frames",
       description="Always attatch reroutes to the lowest common frame of the nodes they connect",
-      default=True,
+      default=False,
       options=set())
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
