@@ -16,6 +16,7 @@ from functools import cache
 from itertools import chain, pairwise
 from math import inf
 from operator import itemgetter
+from statistics import fmean
 from typing import TypeAlias, cast
 
 import networkx as nx
@@ -190,10 +191,10 @@ def calc_barycenters(H: _ClusterCrossingsData) -> None:
         if not sockets:
             continue
 
-        weight = sum([s.owner.cr.socket_ranks[s] for s in sockets])
         random_amount = random.uniform(-1, 1)
-        weight += random.uniform(0, 1) * random_amount - random_amount / 2
-        w.cr.barycenter = weight / len(sockets)
+        w.cr.barycenter = (
+          fmean([s.owner.cr.socket_ranks[s] for s in sockets]) +
+          (random.uniform(0, 1) * random_amount - random_amount / 2))
 
 
 def get_barycenter(v: GNode | Cluster) -> float:
