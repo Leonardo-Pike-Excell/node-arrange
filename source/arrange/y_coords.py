@@ -97,6 +97,9 @@ def should_use_inner_shift(v: GNode, w: GNode, is_right: bool) -> bool:
     if config.SETTINGS.socket_alignment == 'FULL':
         return True
 
+    if v.cluster != w.cluster or GType.STACK in {v.type, w.type}:
+        return True
+
     if not is_right:
         v, w = w, v
 
