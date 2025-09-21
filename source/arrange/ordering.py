@@ -325,20 +325,20 @@ def get_new_col_order(v: GNode | Cluster, LT: _MixedGraph) -> Iterator[GNode]:
         yield v
 
 
+@cache
+def non_cluster_descendant(T: _MixedGraph, c: Cluster) -> GNode:
+    return next(v for _, v in nx.bfs_edges(T, c) if v.type != GType.CLUSTER)
+
+
 def sort_internal_columns(items: _FreeColumns) -> None:
     for free_col, LT, data in items:
 
-        def key(v: GNode | Cluster) -> int:
-            if v.type == GType.CLUSTER:
-                descendants = nx.descendants(LT, v)
-                w = next(w for w in free_col if w in descendants)
-            else:
-                w = v
-
+        def pos(v: GNode | Cluster) -> int:
+            w = non_cluster_descendant(LT, v) if v.type == GType.CLUSTER else v
             return free_col.index(w)
 
         for H in data:
-            H.reduced_free_col.sort(key=key)
+            H.reduced_free_col.sort(key=pos)
 
 
 # -------------------------------------------------------------------
