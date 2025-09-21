@@ -397,9 +397,6 @@ def minimized_cross_count(
     return old_cross_count
 
 
-_ITERATIONS = 15
-
-
 def minimize_crossings(G: nx.MultiDiGraph[GNode], T: _MixedGraph) -> None:
     columns = G.graph['columns']
     trees = get_col_nesting_trees(columns, T)
@@ -419,7 +416,7 @@ def minimize_crossings(G: nx.MultiDiGraph[GNode], T: _MixedGraph) -> None:
     random.seed(0)
     best_cross_count = inf
     best_columns = [c.copy() for c in columns]
-    for _ in range(_ITERATIONS):
+    for _ in range(config.SETTINGS.iterations):
         cross_count = minimized_cross_count(columns, forward_items, backward_items, T)
         if cross_count < best_cross_count:
             best_cross_count = cross_count

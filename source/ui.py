@@ -41,6 +41,12 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
             col.prop(settings, "direction", text="Nodes")
             col.prop(settings, "socket_alignment", text="Sockets")
 
+        header, panel = layout.panel("crossed_links", default_closed=True)
+        header.label(text="Crossed Links")
+        if panel:
+            col = panel.column()
+            col.prop(settings, "iterations")
+
         header, panel = layout.panel("reroutes", default_closed=True)
         header.label(text="Reroutes")
         if panel:
