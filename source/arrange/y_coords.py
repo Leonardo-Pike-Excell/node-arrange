@@ -271,7 +271,7 @@ def balance(G: nx.DiGraph[GNode], layouts: list[list[float]]) -> None:
 
 
 _ITER_LIMIT = 20
-_DIRECTION_TO_IDX = {'LEFT_DOWN': 0, 'LEFT_UP': 1, 'RIGHT_DOWN': 2, 'RIGHT_UP': 3}
+_DIRECTION_TO_IDX = {'RIGHT_DOWN': 0, 'RIGHT_UP': 1, 'LEFT_DOWN': 2, 'LEFT_UP': 3}
 
 
 def bk_assign_y_coords(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> None:
