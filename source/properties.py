@@ -41,7 +41,7 @@ class NA_PG_Settings(PropertyGroup):
     iterations: IntProperty(
       name="Iterations",
       description=
-      "Number of times to reduce crossings between links. To resolve all unnecessary crossings, this option may need to be set very high (since it is probabilistic)",
+      "Number of times to reduce crossings between links (higher values give less crossings, but are slower). To resolve all unnecessary crossings, this option may need to be set very high (since it is probabilistic)",
       default=25,
       min=1,
       options=set())
