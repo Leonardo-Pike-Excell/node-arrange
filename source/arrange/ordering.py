@@ -85,10 +85,14 @@ def topologically_sorted_clusters(LT: _MixedGraph) -> list[Cluster]:
 class _ClusterCrossingsData:
     graph: nx.MultiDiGraph[GNode | Cluster]
     reduced_free_col: list[GNode | Cluster]
+    fixed_col: list[GNode] = field(default_factory=list)
+    expanded_fixed_col: list[GNode] = field(default_factory=list)
+
+    border_pairs: dict[tuple[GNode, GNode], list[GNode]] = field(default_factory=dict)
+    constrained_clusters: list[Cluster] = field(default_factory=list)
 
     fixed_sockets: dict[GNode, list[Socket]] = field(default_factory=dict)
     free_sockets: dict[GNode | Cluster, list[Socket]] = field(default_factory=dict)
-    constrained_clusters: list[Cluster] = field(default_factory=list)
 
     N: list[Socket] = field(default_factory=list)
     S: list[Socket] = field(default_factory=list)
@@ -121,6 +125,35 @@ def crossing_reduction_graph(
     return G_h
 
 
+_BALANCING_FAC = 1
+
+
+def insert_border_edges(
+  H: _ClusterCrossingsData,
+  fixed_LT: _MixedGraph,
+  free_LT: _MixedGraph,
+  is_backwards: bool,
+) -> None:
+    free_clusters = {v for v in H.reduced_free_col if v.type == GType.CLUSTER}
+    for c in free_clusters & fixed_LT.nodes:
+        upper_v = GNode(type=GType.VERTICAL_BORDER)
+        lower_v = GNode(type=GType.VERTICAL_BORDER)
+        H.expanded_fixed_col.extend((upper_v, lower_v))
+
+        fac = 1 + len((nx.descendants(free_LT, c) & fixed_LT.nodes))
+        for border_v in upper_v, lower_v:
+            H.graph.add_edge(
+              border_v,
+              c,
+              weight=(0.5 * _BALANCING_FAC) * fac,
+              from_socket=Socket(border_v, 0, not is_backwards),
+              to_socket=Socket(c, 0, is_backwards),  # type: ignore
+            )
+
+        bordered_nodes = [v for v in nx.descendants(fixed_LT, c) if v.type != GType.CLUSTER]
+        H.border_pairs[upper_v, lower_v] = bordered_nodes
+
+
 def add_bipartite_edges(H: _ClusterCrossingsData) -> None:
     B = nx.DiGraph()
     edges = [(d[FROM_SOCKET], d[TO_SOCKET], d) for *_, d in H.graph.edges.data()]
@@ -144,19 +177,26 @@ def crossing_reduction_data(
   is_backwards: bool = False,
 ) -> Iterator[list[_ClusterCrossingsData]]:
     pos = lambda v: v.col.index(v) if v.type != GType.CLUSTER else inf
-    for i, LT in enumerate(trees[1:], 1):
-        prev_clusters = cast(set[Cluster], trees[i - 1].nodes - G.nodes)
+    for i, free_LT in enumerate(trees[1:], 1):
+        fixed_LT = trees[i - 1]
+        fixed_col = next(v.col for v in fixed_LT if v.type != GType.CLUSTER)
+        prev_clusters = {v for v in fixed_LT if v.type == GType.CLUSTER}
         data = []
-        for h in topologically_sorted_clusters(LT):
-            G_h = crossing_reduction_graph(h, LT, G)
-            H = _ClusterCrossingsData(G_h, sorted(LT[h], key=pos))
+        for h in topologically_sorted_clusters(free_LT):
+            G_h = crossing_reduction_graph(h, free_LT, G)
+            H = _ClusterCrossingsData(G_h, sorted(free_LT[h], key=pos))
 
-            u: GNode
-            for u in chain(*[G_h.pred[v] for v in LT[h]]):  # pyright: ignore[reportAssignmentType]
-                sockets = {e[2] for e in G_h.out_edges(u, data=FROM_SOCKET)}
-                H.fixed_sockets[u] = sorted(sockets, key=lambda d: d.idx, reverse=not is_backwards)
+            H.fixed_col = fixed_col
+            H.expanded_fixed_col.extend(fixed_col)
+            G_h.add_nodes_from(H.expanded_fixed_col)
+            insert_border_edges(H, fixed_LT, free_LT, is_backwards)
 
-            for v in LT[h]:
+            for u in H.expanded_fixed_col:
+                if sockets := {e[2] for e in G_h.out_edges(u, data=FROM_SOCKET)}:
+                    H.fixed_sockets[u] = sorted(
+                      sockets, key=lambda d: d.idx, reverse=not is_backwards)
+
+            for v in H.reduced_free_col:
                 H.free_sockets[v] = [e[2] for e in G_h.in_edges(v, data=FROM_SOCKET)]
 
             H.constrained_clusters.extend([v for v in H.reduced_free_col if v in prev_clusters])
@@ -172,10 +212,21 @@ def crossing_reduction_data(
 _FreeColumns = list[tuple[list[GNode], _MixedGraph, list[_ClusterCrossingsData]]]
 
 
+def sort_expanded_fixed_col(H: _ClusterCrossingsData) -> None:
+    pos: dict[GNode, float] = {v: i for i, v in enumerate(H.fixed_col)}
+
+    for (upper_v, lower_v), bordered_nodes in H.border_pairs.items():
+        positions = [pos[v] for v in bordered_nodes]
+        pos[upper_v] = min(positions) - 0.1
+        pos[lower_v] = max(positions) + 0.1
+
+    H.expanded_fixed_col.sort(key=pos.get)  # type: ignore
+
+
 def calc_socket_ranks(H: _ClusterCrossingsData, is_forwards: bool) -> None:
     for v, sockets in H.fixed_sockets.items():
         incr = 1 / (len(sockets) + 1)
-        rank = v.col.index(v) + 1
+        rank = H.expanded_fixed_col.index(v) + 1
         if is_forwards:
             incr = -incr
 
@@ -281,9 +332,12 @@ def get_cross_count(H: _ClusterCrossingsData) -> int:
 
     reduced_free_col = set(H.reduced_free_col)
 
-    def pos(w: Socket) -> float:
-        v = w.owner
-        return v.cr.barycenter if v in reduced_free_col else v.col.index(v)  # type: ignore
+    def pos(s: Socket) -> float:
+        v = s.owner
+        if v in reduced_free_col:
+            return v.cr.barycenter  # type: ignore
+        else:
+            return H.expanded_fixed_col.index(v)
 
     H.N.sort(key=pos)
     H.S.sort(key=pos)
@@ -376,10 +430,13 @@ def minimized_cross_count(
 
             for H in data:
                 H.constrained_clusters.sort(key=key)
+                sort_expanded_fixed_col(H)
+
                 calc_socket_ranks(H, is_forwards)
                 calc_barycenters(H)
                 fill_in_unknown_barycenters(H.reduced_free_col, is_first_sweep)
                 handle_constraints(H)
+
                 cross_count += get_cross_count(H)
 
             root = topologically_sorted_clusters(LT)[0]
