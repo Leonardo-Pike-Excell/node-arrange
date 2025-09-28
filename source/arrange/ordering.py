@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from functools import cache
 from itertools import chain, pairwise
 from math import inf
