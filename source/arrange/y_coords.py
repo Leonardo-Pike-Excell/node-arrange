@@ -240,11 +240,23 @@ def get_marked_nodes(
         ):
             children = {v for v in T[nested_cluster] if v.type != GType.CLUSTER}
 
-            if children & old_marked_nodes:
+            if children <= old_marked_nodes:
                 continue
 
-            if has_large_gaps_in_frame(nested_cluster, T, is_up):
+            if not has_large_gaps_in_frame(nested_cluster, T, is_up):
+                continue
+
+            if children & old_marked_nodes:
                 marked_nodes.update(children)
+                continue
+
+            for root in {v.root for v in children}:
+                b = tuple(iter_block(root))
+                for u, v in pairwise(b):
+                    if u.is_reroute and v.is_reroute and (u in children != v in children):
+                        break
+                else:
+                    marked_nodes.update(children.intersection(b))
 
     return marked_nodes
 
