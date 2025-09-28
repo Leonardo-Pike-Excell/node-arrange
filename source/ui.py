@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-# type: ignore
-
 from bpy.types import Context, Panel
 from bpy.utils import register_class, unregister_class
 
@@ -23,16 +21,13 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
 
     def draw(self, context: Context) -> None:
         layout = self.layout
-        settings = context.scene.na_settings
-
-        layout.use_property_split = False
-        layout.prop(settings, "arrange_mode", expand=True)
+        settings = context.scene.na_settings  # type: ignore
         layout.use_property_split = True
-        if settings.arrange_mode == 'NODES':
-            layout.operator("node.na_arrange_selected", text="Arrange Selected Nodes")
-        else:
-            layout.operator("node.na_batch_arrange")
-        layout.prop(settings, "margin")
+
+        header, panel = layout.panel("spacing", default_closed=True)
+        header.label(text="Spacing")
+        if panel:
+            panel.prop(settings, "margin", text=" ")
 
         header, panel = layout.panel("alignment", default_closed=True)
         header.label(text="Alignment")
@@ -65,22 +60,30 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
             sub.active = settings.stack_collapsed
             sub.prop(settings, "stack_margin_y_fac")
 
+        layout.use_property_split = False
+        layout.prop(settings, "arrange_mode", expand=True)
+        layout.use_property_split = True
+        if settings.arrange_mode == 'NODES':
+            layout.operator("node.na_arrange_selected", text="Arrange Selected Nodes")
+        else:
+            layout.operator("node.na_batch_arrange")
+
 
 class NA_PT_ClearLocations(NodePanel, Panel):
     bl_label = "Recenter"
 
     def draw(self, context: Context) -> None:
         layout = self.layout
-        settings = context.scene.na_settings
+        settings = context.scene.na_settings  # type: ignore
 
+        layout.use_property_split = True
+        layout.prop(settings, "origin")
         layout.use_property_split = False
         layout.prop(settings, "recenter_mode", expand=True)
-        layout.use_property_split = True
         if settings.recenter_mode == 'NODES':
             layout.operator("node.na_recenter_selected", text="Recenter Selected Nodes")
         else:
             layout.operator("node.na_batch_recenter")
-        layout.prop(settings, "origin")
 
 
 classes = (
