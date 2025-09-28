@@ -72,7 +72,7 @@ def assign_x_coords(G: nx.DiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> Non
 
 
 _MIN_X_DIFF = 30
-_MIN_Y_DIFF = 15
+_MIN_Y_DIFF = 8
 
 
 def is_unnecessary_bend_point(socket: Socket, other_socket: Socket) -> bool:
