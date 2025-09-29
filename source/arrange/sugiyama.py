@@ -18,7 +18,7 @@ from .graph import (
   TO_SOCKET,
   Cluster,
   ClusterGraph,
-  GType,
+  Kind,
   Node,
   Socket,
   get_reroute_paths,
@@ -222,7 +222,7 @@ def sugiyama_layout(ntree: NodeTree) -> None:
         dissolve_dummy_nodes(CG)
 
     align_reroutes_with_sockets(CG)
-    CG.remove_nodes_from([v for v in G if v.type == GType.VERTICAL_BORDER])
+    CG.remove_nodes_from([v for v in G if v.type == Kind.VERTICAL_BORDER])
     assign_x_coords(G, T)
     if config.SETTINGS.add_reroutes:
         route_edges(G, T)

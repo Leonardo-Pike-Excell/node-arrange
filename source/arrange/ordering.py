@@ -22,7 +22,7 @@ from typing import TypeAlias, cast
 import networkx as nx
 
 from .. import config
-from .graph import FROM_SOCKET, TO_SOCKET, Cluster, GType, Node, Socket, socket_graph
+from .graph import FROM_SOCKET, TO_SOCKET, Cluster, Kind, Node, Socket, socket_graph
 
 # -------------------------------------------------------------------
 
@@ -78,7 +78,7 @@ def reflexive_transitive_closure(LT: _MixedGraph) -> _MixedGraph:
 
 @cache
 def topologically_sorted_clusters(LT: _MixedGraph) -> list[Cluster]:
-    return [h for h in nx.topological_sort(LT) if h.type == GType.CLUSTER]
+    return [h for h in nx.topological_sort(LT) if h.type == Kind.CLUSTER]
 
 
 def crossing_reduction_graph(
@@ -101,7 +101,7 @@ def crossing_reduction_graph(
             G_h.edges[s, c, k]['weight'] += 1
             continue
 
-        to_socket = d[input_k] if c.type != GType.CLUSTER else replace(d[input_k], owner=c, idx=0)
+        to_socket = d[input_k] if c.type != Kind.CLUSTER else replace(d[input_k], owner=c, idx=0)
         G_h.add_edge(s, c, weight=1, from_socket=d[output_k], to_socket=to_socket)
 
     return G_h
@@ -136,10 +136,10 @@ class _CrossingReductionGraph:
 
     def _insert_border_edges(self, is_forwards: bool) -> None:
         self.border_pairs = {}
-        free_clusters = {v for v in self.reduced_free_col if v.type == GType.CLUSTER}
+        free_clusters = {v for v in self.reduced_free_col if v.type == Kind.CLUSTER}
         for c in free_clusters & self.fixed_LT.nodes:
-            upper_v = Node(type=GType.VERTICAL_BORDER)
-            lower_v = Node(type=GType.VERTICAL_BORDER)
+            upper_v = Node(type=Kind.VERTICAL_BORDER)
+            lower_v = Node(type=Kind.VERTICAL_BORDER)
             self.expanded_fixed_col.extend((upper_v, lower_v))
 
             fac = 1 + len((nx.descendants(self.free_LT, c) & self.fixed_LT.nodes))
@@ -153,7 +153,7 @@ class _CrossingReductionGraph:
                 )
 
             bordered_nodes = [
-              v for v in nx.descendants(self.fixed_LT, c) if v.type != GType.CLUSTER]
+              v for v in nx.descendants(self.fixed_LT, c) if v.type != Kind.CLUSTER]
             self.border_pairs[upper_v, lower_v] = bordered_nodes
 
     def _add_bipartite_edges(self) -> None:
@@ -191,14 +191,14 @@ class _CrossingReductionGraph:
         self.fixed_LT = fixed_LT
         self.free_LT = free_LT
 
-        fixed_col = next(v.col for v in fixed_LT if v.type != GType.CLUSTER)
+        fixed_col = next(v.col for v in fixed_LT if v.type != Kind.CLUSTER)
         self.fixed_col = fixed_col
-        self.free_col = next(v.col for v in free_LT if v.type != GType.CLUSTER)
+        self.free_col = next(v.col for v in free_LT if v.type != Kind.CLUSTER)
 
         G_h.add_nodes_from(fixed_col)
 
         self.expanded_fixed_col = fixed_col.copy()
-        pos = lambda v: v.col.index(v) if v.type != GType.CLUSTER else inf
+        pos = lambda v: v.col.index(v) if v.type != Kind.CLUSTER else inf
         self.reduced_free_col = sorted(free_LT[h], key=pos)
 
         self._insert_border_edges(is_forwards)
@@ -324,7 +324,7 @@ def handle_constraints(H: _CrossingReductionGraph) -> None:
 
     deg = {v: H.graph.degree[v] for v in GC}
     while c := find_violated_constraint(GC):
-        v_c = Node(type=GType.DUMMY)
+        v_c = Node(type=Kind.DUMMY)
         s, t = c
 
         deg[v_c] = deg[s] + deg[t]
@@ -397,7 +397,7 @@ def get_cross_count(H: _CrossingReductionGraph) -> int:
 
 
 def get_new_col_order(v: Node | Cluster, LT: _MixedGraph) -> Iterator[Node]:
-    if v.type == GType.CLUSTER:
+    if v.type == Kind.CLUSTER:
         for w in sorted(LT[v], key=get_barycenter):
             yield from get_new_col_order(w, LT)
     else:
@@ -406,14 +406,14 @@ def get_new_col_order(v: Node | Cluster, LT: _MixedGraph) -> Iterator[Node]:
 
 @cache
 def non_cluster_descendant(T: _MixedGraph, c: Cluster) -> Node:
-    return next(v for _, v in nx.bfs_edges(T, c) if v.type != GType.CLUSTER)
+    return next(v for _, v in nx.bfs_edges(T, c) if v.type != Kind.CLUSTER)
 
 
 def sort_reduced_free_columns(items: Iterable[Sequence[_CrossingReductionGraph]]) -> None:
     for crossing_reduction_graphs in items:
 
         def pos(v: Node | Cluster) -> int:
-            w = non_cluster_descendant(H.free_LT, v) if v.type == GType.CLUSTER else v
+            w = non_cluster_descendant(H.free_LT, v) if v.type == Kind.CLUSTER else v
             return H.free_col.index(w)
 
         for H in crossing_reduction_graphs:

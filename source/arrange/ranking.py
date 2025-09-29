@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import networkx as nx
 
 from ..utils import group_by
-from .graph import GType, MultiEdge, Node, opposite
+from .graph import Kind, MultiEdge, Node, opposite
 
 if TYPE_CHECKING:
     from .sugiyama import ClusterGraph
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 def get_nesting_graph(CG: ClusterGraph) -> nx.MultiDiGraph[Node]:
     H = CG.G.copy()
     for u, v in CG.T.edges:
-        if u.type == GType.CLUSTER:
-            if v.type != GType.CLUSTER:
+        if u.type == Kind.CLUSTER:
+            if v.type != Kind.CLUSTER:
                 H.add_edges_from(((u.left, v), (v, u.right)))
             else:
                 H.add_edges_from(((u.left, v.left), (v.right, u.right)))
@@ -205,7 +205,7 @@ def normalize_and_balance(CG: ClusterGraph, H: nx.DiGraph[Node]) -> None:
         ranked = group_by(cc, key=lambda v: v.rank, sort=True)
 
         if c.node:
-            start = min(v.rank for v in CG.T[c] if v.type != GType.CLUSTER)
+            start = min(v.rank for v in CG.T[c] if v.type != Kind.CLUSTER)
         else:
             start = c.left.rank - (max(ranked.values()) - min(ranked.values()))
 

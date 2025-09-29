@@ -17,7 +17,7 @@ from .graph import (
   TO_SOCKET,
   Cluster,
   ClusterGraph,
-  GType,
+  Kind,
   Node,
   Socket,
   add_dummy_edge,
@@ -72,7 +72,7 @@ def dissolve_reroute_edges(G: nx.DiGraph[Node], path: list[Node]) -> None:
 def remove_reroutes(CG: ClusterGraph) -> None:
     reroute_clusters = {#
       c for c in CG.S
-      if all(v.type != GType.CLUSTER and v.is_reroute for v in CG.T[c])}
+      if all(v.type != Kind.CLUSTER and v.is_reroute for v in CG.T[c])}
     for path in get_reroute_paths(CG, is_safe_to_remove):
         if path[0].cluster in reroute_clusters:
             if len(path) > 2:
@@ -133,7 +133,7 @@ def add_reroute(v: Node) -> None:
     reroute.parent = v.cluster.node
     config.selected.append(reroute)
     v.node = reroute
-    v.type = GType.NODE
+    v.type = Kind.NODE
 
 
 def realize_edges(G: nx.DiGraph[Node]) -> None:

@@ -31,13 +31,21 @@ from .structs import bNodeSocket
 # -------------------------------------------------------------------
 
 
-class GType(Enum):
+class Kind(Enum):
     NODE = auto()
     STACK = auto()
     DUMMY = auto()
     CLUSTER = auto()
     HORIZONTAL_BORDER = auto()
     VERTICAL_BORDER = auto()
+
+
+_NonCluster = Literal[
+  Kind.NODE,
+  Kind.STACK,
+  Kind.DUMMY,
+  Kind.HORIZONTAL_BORDER,
+  Kind.VERTICAL_BORDER,]
 
 
 @dataclass(slots=True)
@@ -48,14 +56,6 @@ class CrossingReduction:
     def reset(self) -> None:
         self.socket_ranks.clear()
         self.barycenter = None
-
-
-_NonCluster = Literal[
-  GType.NODE,
-  GType.STACK,
-  GType.DUMMY,
-  GType.HORIZONTAL_BORDER,
-  GType.VERTICAL_BORDER,]
 
 
 class Node:
@@ -90,7 +90,7 @@ class Node:
       self,
       node: BlenderNode | None = None,
       cluster: Cluster | None = None,
-      type: _NonCluster = GType.NODE,
+      type: _NonCluster = Kind.NODE,
       rank: int | None = None,
     ) -> None:
         real = isinstance(node, BlenderNode)
@@ -100,7 +100,7 @@ class Node:
         self.type = type
         self.rank = rank  # type: ignore
 
-        if type == GType.DUMMY or (real and node.bl_idname == 'NodeReroute'):
+        if type == Kind.DUMMY or (real and node.bl_idname == 'NodeReroute'):
             self.is_reroute = True
             self.width = REROUTE_DIM.x
             self.height = REROUTE_DIM.y
@@ -109,7 +109,7 @@ class Node:
             self.width = dimensions(node).x
             self.height = get_top(node) - get_bottom(node)
         else:
-            self.is_reroute = type == GType.VERTICAL_BORDER
+            self.is_reroute = type == Kind.VERTICAL_BORDER
             self.width = 0
             self.height = 0
 
@@ -171,15 +171,15 @@ class Cluster:
     right: Node = field(init=False)
 
     def __post_init__(self) -> None:
-        self.left = Node(None, self, GType.HORIZONTAL_BORDER)
-        self.right = Node(None, self, GType.HORIZONTAL_BORDER)
+        self.left = Node(None, self, Kind.HORIZONTAL_BORDER)
+        self.right = Node(None, self, Kind.HORIZONTAL_BORDER)
 
     def __hash__(self) -> int:
         return id(self)
 
     @property
-    def type(self) -> Literal[GType.CLUSTER]:
-        return GType.CLUSTER
+    def type(self) -> Literal[Kind.CLUSTER]:
+        return Kind.CLUSTER
 
     def label_height(self) -> float:
         frame = self.node
@@ -325,7 +325,7 @@ class ClusterGraph:
     def __init__(self, G: nx.MultiDiGraph[Node]) -> None:
         self.G = G
         self.T = nx.DiGraph(chain(*map(get_nesting_relations, G)))
-        self.S = {v for v in self.T if v.type == GType.CLUSTER}
+        self.S = {v for v in self.T if v.type == Kind.CLUSTER}
 
     def remove_nodes_from(self, nodes: Iterable[Node]) -> None:
         ntree = get_ntree()
@@ -369,7 +369,7 @@ class ClusterGraph:
                 else:
                     assert u.cluster
                     c = lca.get((u, v), u.cluster)
-                    w = Node(None, c, GType.DUMMY, v.rank - 1)
+                    w = Node(None, c, Kind.DUMMY, v.rank - 1)
                     dummy_nodes.append(w)
 
                 add_dummy_nodes_to_edge(G, (u, v, k), [w])
@@ -392,7 +392,7 @@ class ClusterGraph:
         # -------------------------------------------------------------------
 
         for c in self.S:
-            descendants = [v for v in nx.descendants(T, c) if v.type != GType.CLUSTER]
+            descendants = [v for v in nx.descendants(T, c) if v.type != Kind.CLUSTER]
             c.left = min(descendants, key=lambda v: v.rank)
             c.right = max(descendants, key=lambda v: v.rank)
 
@@ -405,7 +405,7 @@ class ClusterGraph:
             c = lca.get((u, v), u.cluster)
             dummy_nodes = []
             for i in range(u.rank + 1, v.rank):
-                w = Node(None, c, GType.DUMMY, i)
+                w = Node(None, c, Kind.DUMMY, i)
                 dummy_nodes.append(w)
 
             improve_cluster_assignment((u, v), dummy_nodes)
@@ -421,10 +421,10 @@ class ClusterGraph:
             if not c.node:
                 continue
 
-            ranks = sorted({v.rank for v in nx.descendants(T, c) if v.type != GType.CLUSTER})
+            ranks = sorted({v.rank for v in nx.descendants(T, c) if v.type != Kind.CLUSTER})
             for i, j in pairwise(ranks):
                 for k in range(i + 1, j):
-                    v = Node(None, c, GType.DUMMY, k)
+                    v = Node(None, c, Kind.DUMMY, k)
                     v.is_fill_dummy = True
                     G.add_node(v)
                     T.add_edge(c, v)
@@ -437,20 +437,20 @@ class ClusterGraph:
             if not c.node:
                 continue
 
-            descendants = [v for v in nx.descendants(T, c) if v.type != GType.CLUSTER]
+            descendants = [v for v in nx.descendants(T, c) if v.type != Kind.CLUSTER]
             lower_border_nodes = []
             upper_border_nodes = []
             for subcol in group_by(descendants, key=lambda v: columns.index(v.col), sort=True):
                 col = subcol[0].col
                 indices = [col.index(v) for v in subcol]
 
-                lower_v = Node(None, c, GType.VERTICAL_BORDER)
+                lower_v = Node(None, c, Kind.VERTICAL_BORDER)
                 col.insert(max(indices) + 1, lower_v)
                 lower_v.col = col
                 T.add_edge(c, lower_v)
                 lower_border_nodes.append(lower_v)
 
-                upper_v = Node(None, c, GType.VERTICAL_BORDER)
+                upper_v = Node(None, c, Kind.VERTICAL_BORDER)
                 upper_v.height += c.label_height()
                 col.insert(min(indices), upper_v)
                 upper_v.col = col
@@ -546,7 +546,7 @@ def get_reroute_paths(
     if preserve_reroute_clusters:
         reroute_clusters = {#
           c for c in CG.S
-          if all(v.is_reroute for v in CG.T[c] if v.type != GType.CLUSTER)}
+          if all(v.is_reroute for v in CG.T[c] if v.type != Kind.CLUSTER)}
         SG.remove_edges_from([#
           (u, v) for u, v in SG.edges
           if u.cluster != v.cluster and {u.cluster, v.cluster} & reroute_clusters])

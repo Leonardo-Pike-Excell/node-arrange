@@ -16,7 +16,7 @@ from typing import Any, cast
 import networkx as nx
 
 from .. import config
-from .graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, GType, Node, Socket
+from .graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, Kind, Node, Socket
 
 
 def marked_conflicts(
@@ -97,7 +97,7 @@ def should_use_inner_shift(v: Node, w: Node, is_right: bool) -> bool:
     if config.SETTINGS.socket_alignment == 'FULL':
         return True
 
-    if v.cluster != w.cluster or GType.STACK in {v.type, w.type}:
+    if v.cluster != w.cluster or Kind.STACK in {v.type, w.type}:
         return True
 
     if not is_right:
@@ -202,13 +202,13 @@ def get_merged_lines(lines: Iterable[tuple[float, float]]) -> list[tuple[float, 
 def has_large_gaps_in_frame(cluster: Cluster, T: nx.DiGraph[Cluster | Node], is_up: bool) -> bool:
     lines = []
     for v in T[cluster]:
-        if v.type == GType.VERTICAL_BORDER:
+        if v.type == Kind.VERTICAL_BORDER:
             continue
 
-        if v.type != GType.CLUSTER:
+        if v.type != Kind.CLUSTER:
             line = (v.y, v.y + v.height) if is_up else (v.y - v.height, v.y)
         else:
-            vertical_border_roots = {w.root for w in T[v] if w.type == GType.VERTICAL_BORDER}
+            vertical_border_roots = {w.root for w in T[v] if w.type == Kind.VERTICAL_BORDER}
             w, z = sorted(vertical_border_roots, key=lambda w: w.y)
             line = (w.y, z.y + z.height) if is_up else (w.y - w.height, z.y)
 
@@ -226,7 +226,7 @@ def get_marked_nodes(
 ) -> set[Node]:
     marked_nodes = set()
     for cluster in T:
-        if cluster.type != GType.CLUSTER or cluster.nesting_level != 1:
+        if cluster.type != Kind.CLUSTER or cluster.nesting_level != 1:
             continue
 
         descendant_clusters = cast(
@@ -238,7 +238,7 @@ def get_marked_nodes(
           key=lambda c: cast(int, c.nesting_level),
           reverse=True,
         ):
-            children = {v for v in T[nested_cluster] if v.type != GType.CLUSTER}
+            children = {v for v in T[nested_cluster] if v.type != Kind.CLUSTER}
 
             if children <= old_marked_nodes:
                 continue
@@ -292,7 +292,7 @@ def bk_assign_y_coords(G: nx.MultiDiGraph[Node], T: nx.DiGraph[Node | Cluster]) 
         col.reverse()
 
     is_incident_to_inner_segment = lambda v: v.is_reroute and any(u.is_reroute for u in G.pred[v])
-    is_incident_to_vertical_border = lambda v: v.type == GType.VERTICAL_BORDER and G.pred[v]
+    is_incident_to_vertical_border = lambda v: v.type == Kind.VERTICAL_BORDER and G.pred[v]
     marked_edges = marked_conflicts(G, should_ensure_alignment=is_incident_to_inner_segment)
     marked_edges |= marked_conflicts(G, should_ensure_alignment=is_incident_to_vertical_border)
 

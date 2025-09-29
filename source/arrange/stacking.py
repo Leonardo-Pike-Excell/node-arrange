@@ -18,7 +18,7 @@ from .graph import (
   Cluster,
   ClusterGraph,
   Edge,
-  GType,
+  Kind,
   MultiEdge,
   Node,
   Socket,
@@ -226,7 +226,7 @@ def contracted_node_stacks(CG: ClusterGraph) -> list[NodeStack]:
         if len(c) == 1:
             continue
 
-        rep_node = Node(type=GType.STACK)
+        rep_node = Node(type=Kind.STACK)
         path: list[Node] = sorted(c, key=order.get)  # type: ignore
         node_stack = NodeStack(rep_node, path)
 

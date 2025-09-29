@@ -16,7 +16,7 @@ from .graph import (
   FROM_SOCKET,
   TO_SOCKET,
   Cluster,
-  GType,
+  Kind,
   MultiEdge,
   Node,
   Socket,
@@ -117,7 +117,7 @@ def add_bend_points(
     largest = max(v.col, key=lambda w: w.width)
     for u, w, k, d in *G.out_edges(v, data=True, keys=True), *G.in_edges(v, data=True, keys=True):
         socket = d[FROM_SOCKET] if v == u else d[TO_SOCKET]
-        bend_point = Node(type=GType.DUMMY)
+        bend_point = Node(type=Kind.DUMMY)
         bend_point.x = largest.x + largest.width if socket.is_output else largest.x
 
         if abs(socket.x - bend_point.x) <= _MIN_X_DIFF:
