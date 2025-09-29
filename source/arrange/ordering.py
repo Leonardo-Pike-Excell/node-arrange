@@ -22,15 +22,15 @@ from typing import TypeAlias, cast
 import networkx as nx
 
 from .. import config
-from .graph import FROM_SOCKET, TO_SOCKET, Cluster, GNode, GType, Socket, socket_graph
+from .graph import FROM_SOCKET, TO_SOCKET, Cluster, GType, Node, Socket, socket_graph
 
 # -------------------------------------------------------------------
 
-_MixedGraph: TypeAlias = 'nx.DiGraph[GNode | Cluster]'
+_MixedGraph: TypeAlias = 'nx.DiGraph[Node | Cluster]'
 
 
 def get_col_nesting_trees(
-  columns: Sequence[Collection[GNode]],
+  columns: Sequence[Collection[Node]],
   T: _MixedGraph,
 ) -> list[_MixedGraph]:
     trees = []
@@ -43,7 +43,7 @@ def get_col_nesting_trees(
     return trees
 
 
-def expand_multi_inputs(G: nx.MultiDiGraph[GNode]) -> None:
+def expand_multi_inputs(G: nx.MultiDiGraph[Node]) -> None:
     H = socket_graph(G)
     reroutes = {v for v in H if v.owner.is_reroute}
     for v in {s.owner for s in config.multi_input_sort_ids}:
@@ -84,8 +84,8 @@ def topologically_sorted_clusters(LT: _MixedGraph) -> list[Cluster]:
 def crossing_reduction_graph(
   h: Cluster,
   LT: _MixedGraph,
-  G: nx.MultiDiGraph[GNode],
-) -> nx.MultiDiGraph[GNode | Cluster]:
+  G: nx.MultiDiGraph[Node],
+) -> nx.MultiDiGraph[Node | Cluster]:
     G_h = nx.MultiDiGraph()
     G_h.add_nodes_from(LT[h])
     TC = reflexive_transitive_closure(LT)
@@ -111,21 +111,21 @@ _BALANCING_FAC = 1
 
 
 class _CrossingReductionGraph:
-    graph: nx.MultiDiGraph[GNode | Cluster]
+    graph: nx.MultiDiGraph[Node | Cluster]
 
     fixed_LT: _MixedGraph
     free_LT: _MixedGraph
 
-    fixed_col: list[GNode]
-    free_col: list[GNode]
+    fixed_col: list[Node]
+    free_col: list[Node]
 
-    expanded_fixed_col: list[GNode]
-    reduced_free_col: list[GNode | Cluster]
+    expanded_fixed_col: list[Node]
+    reduced_free_col: list[Node | Cluster]
 
-    fixed_sockets: dict[GNode, list[Socket]]
-    free_sockets: dict[GNode | Cluster, list[Socket]]
+    fixed_sockets: dict[Node, list[Socket]]
+    free_sockets: dict[Node | Cluster, list[Socket]]
 
-    border_pairs: dict[tuple[GNode, GNode], list[GNode]]
+    border_pairs: dict[tuple[Node, Node], list[Node]]
     constrained_clusters: list[Cluster]
 
     N: list[Socket]
@@ -138,8 +138,8 @@ class _CrossingReductionGraph:
         self.border_pairs = {}
         free_clusters = {v for v in self.reduced_free_col if v.type == GType.CLUSTER}
         for c in free_clusters & self.fixed_LT.nodes:
-            upper_v = GNode(type=GType.VERTICAL_BORDER)
-            lower_v = GNode(type=GType.VERTICAL_BORDER)
+            upper_v = Node(type=GType.VERTICAL_BORDER)
+            lower_v = Node(type=GType.VERTICAL_BORDER)
             self.expanded_fixed_col.extend((upper_v, lower_v))
 
             fac = 1 + len((nx.descendants(self.free_LT, c) & self.fixed_LT.nodes))
@@ -179,7 +179,7 @@ class _CrossingReductionGraph:
 
     def __init__(
       self,
-      G: nx.MultiDiGraph[GNode],
+      G: nx.MultiDiGraph[Node],
       h: Cluster,
       fixed_LT: _MixedGraph,
       free_LT: _MixedGraph,
@@ -220,7 +220,7 @@ class _CrossingReductionGraph:
 
 def crossing_reduction_items(
   trees: Iterable[_MixedGraph],
-  G: nx.MultiDiGraph[GNode],
+  G: nx.MultiDiGraph[Node],
   is_forwards: bool,
 ) -> list[list[_CrossingReductionGraph]]:
     items = []
@@ -237,7 +237,7 @@ def crossing_reduction_items(
 
 
 def sort_expanded_fixed_col(H: _CrossingReductionGraph) -> None:
-    pos: dict[GNode, float] = {v: i for i, v in enumerate(H.fixed_col)}
+    pos: dict[Node, float] = {v: i for i, v in enumerate(H.fixed_col)}
 
     for (upper_v, lower_v), bordered_nodes in H.border_pairs.items():
         positions = [pos[v] for v in bordered_nodes]
@@ -272,13 +272,13 @@ def calc_barycenters(H: _CrossingReductionGraph) -> None:
           (random.uniform(0, 1) * random_amount - random_amount / 2))
 
 
-def get_barycenter(v: GNode | Cluster) -> float:
+def get_barycenter(v: Node | Cluster) -> float:
     barycenter = v.cr.barycenter
     assert barycenter is not None
     return barycenter
 
 
-def fill_in_unknown_barycenters(col: list[GNode | Cluster], is_first_iter: bool) -> None:
+def fill_in_unknown_barycenters(col: list[Node | Cluster], is_first_iter: bool) -> None:
     if is_first_iter:
         max_b = max([b for v in col if (b := v.cr.barycenter) is not None], default=0) + 2
         for v in col:
@@ -295,7 +295,7 @@ def fill_in_unknown_barycenters(col: list[GNode | Cluster], is_first_iter: bool)
         v.cr.barycenter = (prev_b + next_b) / 2
 
 
-def find_violated_constraint(GC: _MixedGraph) -> tuple[GNode | Cluster, GNode | Cluster] | None:
+def find_violated_constraint(GC: _MixedGraph) -> tuple[Node | Cluster, Node | Cluster] | None:
     active = [v for v in GC if GC[v] and not GC.pred[v]]
     incoming_constraints = defaultdict(list)
     while active:
@@ -324,7 +324,7 @@ def handle_constraints(H: _CrossingReductionGraph) -> None:
 
     deg = {v: H.graph.degree[v] for v in GC}
     while c := find_violated_constraint(GC):
-        v_c = GNode(type=GType.DUMMY)
+        v_c = Node(type=GType.DUMMY)
         s, t = c
 
         deg[v_c] = deg[s] + deg[t]
@@ -396,7 +396,7 @@ def get_cross_count(H: _CrossingReductionGraph) -> int:
     return cross_weight
 
 
-def get_new_col_order(v: GNode | Cluster, LT: _MixedGraph) -> Iterator[GNode]:
+def get_new_col_order(v: Node | Cluster, LT: _MixedGraph) -> Iterator[Node]:
     if v.type == GType.CLUSTER:
         for w in sorted(LT[v], key=get_barycenter):
             yield from get_new_col_order(w, LT)
@@ -405,14 +405,14 @@ def get_new_col_order(v: GNode | Cluster, LT: _MixedGraph) -> Iterator[GNode]:
 
 
 @cache
-def non_cluster_descendant(T: _MixedGraph, c: Cluster) -> GNode:
+def non_cluster_descendant(T: _MixedGraph, c: Cluster) -> Node:
     return next(v for _, v in nx.bfs_edges(T, c) if v.type != GType.CLUSTER)
 
 
 def sort_reduced_free_columns(items: Iterable[Sequence[_CrossingReductionGraph]]) -> None:
     for crossing_reduction_graphs in items:
 
-        def pos(v: GNode | Cluster) -> int:
+        def pos(v: Node | Cluster) -> int:
             w = non_cluster_descendant(H.free_LT, v) if v.type == GType.CLUSTER else v
             return H.free_col.index(w)
 
@@ -424,7 +424,7 @@ def sort_reduced_free_columns(items: Iterable[Sequence[_CrossingReductionGraph]]
 
 
 def minimized_cross_count(
-  columns: Sequence[list[GNode]],
+  columns: Sequence[list[Node]],
   forward_items: list[list[_CrossingReductionGraph]],
   backward_items: list[list[_CrossingReductionGraph]],
   T: _MixedGraph,
@@ -481,7 +481,7 @@ def minimized_cross_count(
     return old_cross_count
 
 
-def minimize_crossings(G: nx.MultiDiGraph[GNode], T: _MixedGraph) -> None:
+def minimize_crossings(G: nx.MultiDiGraph[Node], T: _MixedGraph) -> None:
     columns = G.graph['columns']
     trees = get_col_nesting_trees(columns, T)
     G_ = G.copy()
@@ -490,7 +490,7 @@ def minimize_crossings(G: nx.MultiDiGraph[GNode], T: _MixedGraph) -> None:
 
     forward_items = crossing_reduction_items(trees, G_, True)
 
-    G__ = cast('nx.MultiDiGraph[GNode]', nx.reverse_view(G_))  # type: ignore
+    G__ = cast('nx.MultiDiGraph[Node]', nx.reverse_view(G_))  # type: ignore
     backward_items = crossing_reduction_items(reversed(trees), G__, False)
 
     # -------------------------------------------------------------------

@@ -12,7 +12,8 @@ from typing import Any, Literal, Sequence, TypeGuard
 
 import bpy
 import networkx as nx
-from bpy.types import Node, NodeFrame, NodeSocket
+from bpy.types import Node as BlenderNode
+from bpy.types import NodeFrame, NodeSocket
 
 from .. import config
 from ..utils import (
@@ -57,8 +58,8 @@ _NonCluster = Literal[
   GType.VERTICAL_BORDER,]
 
 
-class GNode:
-    node: Node | None
+class Node:
+    node: BlenderNode | None
     cluster: Cluster | None
     type: _NonCluster
 
@@ -71,28 +72,28 @@ class GNode:
     lowest_po_num: int
     is_fill_dummy: bool
 
-    col: list[GNode]
+    col: list[Node]
     cr: CrossingReduction
 
     x: float
     y: float
 
-    root: GNode
-    aligned: GNode
+    root: Node
+    aligned: Node
     inner_shift: float
-    sink: GNode
+    sink: Node
     shift: float
 
     __slots__ = tuple(__annotations__)
 
     def __init__(
       self,
-      node: Node | None = None,
+      node: BlenderNode | None = None,
       cluster: Cluster | None = None,
       type: _NonCluster = GType.NODE,
       rank: int | None = None,
     ) -> None:
-        real = isinstance(node, Node)
+        real = isinstance(node, BlenderNode)
 
         self.node = node
         self.cluster = cluster
@@ -140,23 +141,23 @@ class GNode:
         return self.y + (abs_loc(self.node).y - get_top(self.node))
 
 
-class _RealGNode(GNode):
-    node: Node  # type: ignore
+class _RealNode(Node):
+    node: BlenderNode  # type: ignore
 
 
-def is_real(v: GNode | Cluster) -> TypeGuard[_RealGNode]:
-    return isinstance(v.node, Node)
+def is_real(v: Node | Cluster) -> TypeGuard[_RealNode]:
+    return isinstance(v.node, BlenderNode)
 
 
-def node_name(v: GNode) -> str:
+def node_name(v: Node) -> str:
     return getattr(v.node, 'name', '')
 
 
-Edge = tuple[GNode, GNode]
-MultiEdge = tuple[GNode, GNode, int]
+Edge = tuple[Node, Node]
+MultiEdge = tuple[Node, Node, int]
 
 
-def opposite(v: GNode, e: tuple[GNode, GNode] | tuple[GNode, GNode, ...]) -> GNode:
+def opposite(v: Node, e: tuple[Node, Node] | tuple[Node, Node, ...]) -> Node:
     return e[0] if v != e[0] else e[1]
 
 
@@ -166,12 +167,12 @@ class Cluster:
     cluster: Cluster
     nesting_level: int | None = None
     cr: CrossingReduction = field(default_factory=CrossingReduction)
-    left: GNode = field(init=False)
-    right: GNode = field(init=False)
+    left: Node = field(init=False)
+    right: Node = field(init=False)
 
     def __post_init__(self) -> None:
-        self.left = GNode(None, self, GType.HORIZONTAL_BORDER)
-        self.right = GNode(None, self, GType.HORIZONTAL_BORDER)
+        self.left = Node(None, self, GType.HORIZONTAL_BORDER)
+        self.right = Node(None, self, GType.HORIZONTAL_BORDER)
 
     def __hash__(self) -> int:
         return id(self)
@@ -191,28 +192,28 @@ class Cluster:
 # -------------------------------------------------------------------
 
 
-def get_nesting_relations(v: GNode | Cluster) -> Iterator[tuple[Cluster, GNode | Cluster]]:
+def get_nesting_relations(v: Node | Cluster) -> Iterator[tuple[Cluster, Node | Cluster]]:
     if c := v.cluster:
         yield (c, v)
         yield from get_nesting_relations(c)
 
 
 def lowest_common_cluster(
-  T: nx.DiGraph[GNode | Cluster],
-  edges: Iterable[tuple[GNode, GNode, Any]],
+  T: nx.DiGraph[Node | Cluster],
+  edges: Iterable[tuple[Node, Node, Any]],
 ) -> dict[Edge, Cluster]:
     pairs = {(u, v) for u, v, _ in edges if u.cluster != v.cluster}
     return dict(nx.tree_all_pairs_lowest_common_ancestor(T, pairs=pairs))
 
 
-def add_dummy_edge(G: nx.DiGraph[GNode], u: GNode, v: GNode) -> None:
+def add_dummy_edge(G: nx.DiGraph[Node], u: Node, v: Node) -> None:
     G.add_edge(u, v, from_socket=Socket(u, 0, True), to_socket=Socket(v, 0, False))
 
 
 def add_dummy_nodes_to_edge(
-  G: nx.MultiDiGraph[GNode],
+  G: nx.MultiDiGraph[Node],
   edge: MultiEdge,
-  dummy_nodes: Sequence[GNode],
+  dummy_nodes: Sequence[Node],
 ) -> None:
     if not dummy_nodes:
         return
@@ -243,10 +244,10 @@ def add_dummy_nodes_to_edge(
 
 
 def assign_clusters(
-  dummy_nodes: Iterable[GNode],
+  dummy_nodes: Iterable[Node],
   start: Cluster,
   stop: Cluster,
-  is_within_cluster: Callable[[GNode, Cluster], bool],
+  is_within_cluster: Callable[[Node, Cluster], bool],
 ) -> None:
     c = start
     for w in dummy_nodes:
@@ -259,7 +260,7 @@ def assign_clusters(
         w.cluster = c
 
 
-def improve_cluster_assignment(e: Edge, dummy_nodes: Sequence[GNode]) -> None:
+def improve_cluster_assignment(e: Edge, dummy_nodes: Sequence[Node]) -> None:
     if config.SETTINGS.keep_reroutes_outside_frames:
         return
 
@@ -316,17 +317,17 @@ def improve_cluster_assignment(e: Edge, dummy_nodes: Sequence[GNode]) -> None:
 
 # https://api.semanticscholar.org/CorpusID:14932050
 class ClusterGraph:
-    G: nx.MultiDiGraph[GNode]
-    T: nx.DiGraph[GNode | Cluster]
+    G: nx.MultiDiGraph[Node]
+    T: nx.DiGraph[Node | Cluster]
     S: set[Cluster]
     __slots__ = tuple(__annotations__)
 
-    def __init__(self, G: nx.MultiDiGraph[GNode]) -> None:
+    def __init__(self, G: nx.MultiDiGraph[Node]) -> None:
         self.G = G
         self.T = nx.DiGraph(chain(*map(get_nesting_relations, G)))
         self.S = {v for v in self.T if v.type == GType.CLUSTER}
 
-    def remove_nodes_from(self, nodes: Iterable[GNode]) -> None:
+    def remove_nodes_from(self, nodes: Iterable[Node]) -> None:
         ntree = get_ntree()
         for v in nodes:
             self.G.remove_node(v)
@@ -368,7 +369,7 @@ class ClusterGraph:
                 else:
                     assert u.cluster
                     c = lca.get((u, v), u.cluster)
-                    w = GNode(None, c, GType.DUMMY, v.rank - 1)
+                    w = Node(None, c, GType.DUMMY, v.rank - 1)
                     dummy_nodes.append(w)
 
                 add_dummy_nodes_to_edge(G, (u, v, k), [w])
@@ -404,7 +405,7 @@ class ClusterGraph:
             c = lca.get((u, v), u.cluster)
             dummy_nodes = []
             for i in range(u.rank + 1, v.rank):
-                w = GNode(None, c, GType.DUMMY, i)
+                w = Node(None, c, GType.DUMMY, i)
                 dummy_nodes.append(w)
 
             improve_cluster_assignment((u, v), dummy_nodes)
@@ -423,7 +424,7 @@ class ClusterGraph:
             ranks = sorted({v.rank for v in nx.descendants(T, c) if v.type != GType.CLUSTER})
             for i, j in pairwise(ranks):
                 for k in range(i + 1, j):
-                    v = GNode(None, c, GType.DUMMY, k)
+                    v = Node(None, c, GType.DUMMY, k)
                     v.is_fill_dummy = True
                     G.add_node(v)
                     T.add_edge(c, v)
@@ -443,13 +444,13 @@ class ClusterGraph:
                 col = subcol[0].col
                 indices = [col.index(v) for v in subcol]
 
-                lower_v = GNode(None, c, GType.VERTICAL_BORDER)
+                lower_v = Node(None, c, GType.VERTICAL_BORDER)
                 col.insert(max(indices) + 1, lower_v)
                 lower_v.col = col
                 T.add_edge(c, lower_v)
                 lower_border_nodes.append(lower_v)
 
-                upper_v = GNode(None, c, GType.VERTICAL_BORDER)
+                upper_v = Node(None, c, GType.VERTICAL_BORDER)
                 upper_v.height += c.label_height()
                 col.insert(min(indices), upper_v)
                 upper_v.col = col
@@ -472,7 +473,7 @@ def get_socket_y(socket: NodeSocket) -> float:
 
 @dataclass(frozen=True)
 class Socket:
-    owner: GNode
+    owner: Node
     idx: int
     is_output: bool
     prescribed_offset_y: float | None = field(default=None, hash=False, compare=False)
@@ -514,7 +515,7 @@ FROM_SOCKET = 'from_socket'
 TO_SOCKET = 'to_socket'
 
 
-def socket_graph(G: nx.MultiDiGraph[GNode]) -> nx.DiGraph[Socket]:
+def socket_graph(G: nx.MultiDiGraph[Node]) -> nx.DiGraph[Socket]:
     H = nx.DiGraph()
     H.add_edges_from([(d[FROM_SOCKET], d[TO_SOCKET]) for *_, d in G.edges.data()])
     for sockets in group_by(H, key=lambda s: s.owner):
@@ -533,7 +534,7 @@ def get_reroute_paths(
   *,
   preserve_reroute_clusters: bool = True,
   must_be_aligned: bool = False,
-) -> list[list[GNode]]:
+) -> list[list[Node]]:
     G = CG.G
     reroutes = {v for v in G if v.is_reroute and (not function or function(v))}
     SG = nx.DiGraph(G.subgraph(reroutes))

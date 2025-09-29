@@ -16,9 +16,9 @@ from .graph import (
   FROM_SOCKET,
   TO_SOCKET,
   Cluster,
-  GNode,
   GType,
   MultiEdge,
+  Node,
   Socket,
   add_dummy_nodes_to_edge,
   lowest_common_cluster,
@@ -26,9 +26,9 @@ from .graph import (
 
 
 def frame_padding_of_col(
-  columns: Sequence[Collection[GNode]],
+  columns: Sequence[Collection[Node]],
   i: int,
-  T: nx.DiGraph[GNode | Cluster],
+  T: nx.DiGraph[Node | Cluster],
 ) -> float:
     col = columns[i]
 
@@ -54,8 +54,8 @@ def frame_padding_of_col(
     return frame_padding() * dist
 
 
-def assign_x_coords(G: nx.DiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> None:
-    columns: list[list[GNode]] = G.graph['columns']
+def assign_x_coords(G: nx.DiGraph[Node], T: nx.DiGraph[Node | Cluster]) -> None:
+    columns: list[list[Node]] = G.graph['columns']
     x = 0
     for i, col in enumerate(columns):
         max_width = max([v.width for v in col])
@@ -109,15 +109,15 @@ def is_unnecessary_bend_point(socket: Socket, other_socket: Socket) -> bool:
 
 
 def add_bend_points(
-  G: nx.MultiDiGraph[GNode],
-  v: GNode,
-  bend_points: defaultdict[MultiEdge, list[GNode]],
+  G: nx.MultiDiGraph[Node],
+  v: Node,
+  bend_points: defaultdict[MultiEdge, list[Node]],
 ) -> None:
     d: dict[str, Socket]
     largest = max(v.col, key=lambda w: w.width)
     for u, w, k, d in *G.out_edges(v, data=True, keys=True), *G.in_edges(v, data=True, keys=True):
         socket = d[FROM_SOCKET] if v == u else d[TO_SOCKET]
-        bend_point = GNode(type=GType.DUMMY)
+        bend_point = Node(type=GType.DUMMY)
         bend_point.x = largest.x + largest.width if socket.is_output else largest.x
 
         if abs(socket.x - bend_point.x) <= _MIN_X_DIFF:
@@ -136,7 +136,7 @@ def add_bend_points(
 
 
 def node_overlaps_edge(
-  v: GNode,
+  v: Node,
   edge_line: tuple[tuple[float, float], tuple[float, float]],
 ) -> bool:
     if v.is_reroute:
@@ -156,7 +156,7 @@ def node_overlaps_edge(
     return False
 
 
-def route_edges(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> None:
+def route_edges(G: nx.MultiDiGraph[Node], T: nx.DiGraph[Node | Cluster]) -> None:
     bend_points = defaultdict(list)
     for v in chain(*G.graph['columns']):
         add_bend_points(G, v, bend_points)

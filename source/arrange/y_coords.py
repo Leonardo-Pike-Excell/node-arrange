@@ -16,14 +16,14 @@ from typing import Any, cast
 import networkx as nx
 
 from .. import config
-from .graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, GNode, GType, Socket
+from .graph import FROM_SOCKET, TO_SOCKET, Cluster, Edge, GType, Node, Socket
 
 
 def marked_conflicts(
-  G: nx.DiGraph[GNode],
+  G: nx.DiGraph[Node],
   *,
-  should_ensure_alignment: Callable[[GNode], Any],
-) -> set[frozenset[GNode]]:
+  should_ensure_alignment: Callable[[Node], Any],
+) -> set[frozenset[Node]]:
     columns = G.graph['columns']
     marked_edges = set()
     for i, col in enumerate(columns[1:], 1):
@@ -56,9 +56,9 @@ def marked_conflicts(
 
 
 def horizontal_alignment(
-  G: nx.DiGraph[GNode],
-  marked_edges: Collection[frozenset[GNode]],
-  marked_nodes: Collection[GNode],
+  G: nx.DiGraph[Node],
+  marked_edges: Collection[frozenset[Node]],
+  marked_nodes: Collection[Node],
 ) -> None:
     for col in G.graph['columns']:
         prev_i = -1
@@ -80,14 +80,14 @@ def horizontal_alignment(
                 prev_i = i
 
 
-def iter_block(start: GNode) -> Iterator[GNode]:
+def iter_block(start: Node) -> Iterator[Node]:
     yield start
     w = start
     while (w := w.aligned) != start:
         yield w
 
 
-def should_use_inner_shift(v: GNode, w: GNode, is_right: bool) -> bool:
+def should_use_inner_shift(v: Node, w: Node, is_right: bool) -> bool:
     if v.is_reroute or w.is_reroute:
         return True
 
@@ -109,7 +109,7 @@ def should_use_inner_shift(v: GNode, w: GNode, is_right: bool) -> bool:
     return abs(v.height - w.height) > fmean((v.height, w.height)) / 2
 
 
-def inner_shift(G: nx.MultiDiGraph[GNode], is_right: bool, is_up: bool) -> None:
+def inner_shift(G: nx.MultiDiGraph[Node], is_right: bool, is_up: bool) -> None:
     for root in {v.root for v in G}:
         for v, w in pairwise(iter_block(root)):
             if not should_use_inner_shift(v, w, is_right):
@@ -131,7 +131,7 @@ def inner_shift(G: nx.MultiDiGraph[GNode], is_right: bool, is_up: bool) -> None:
             w.inner_shift = fmean(inner_shifts)
 
 
-def place_block(v: GNode, is_up: bool) -> None:
+def place_block(v: Node, is_up: bool) -> None:
     if cast(float | None, v.y) is not None:
         return
 
@@ -161,13 +161,13 @@ def place_block(v: GNode, is_up: bool) -> None:
         w.sink = v.sink
 
 
-def vertical_compaction(G: nx.DiGraph[GNode], is_up: bool) -> None:
+def vertical_compaction(G: nx.DiGraph[Node], is_up: bool) -> None:
     for v in G:
         if v.root == v:
             place_block(v, is_up)
 
     columns = G.graph['columns']
-    neighborings: defaultdict[tuple[GNode, ...], set[Edge]] = defaultdict(set)
+    neighborings: defaultdict[tuple[Node, ...], set[Edge]] = defaultdict(set)
 
     for col in columns:
         for v, u in pairwise(reversed(col)):
@@ -199,7 +199,7 @@ def get_merged_lines(lines: Iterable[tuple[float, float]]) -> list[tuple[float, 
     return merged
 
 
-def has_large_gaps_in_frame(cluster: Cluster, T: nx.DiGraph[Cluster | GNode], is_up: bool) -> bool:
+def has_large_gaps_in_frame(cluster: Cluster, T: nx.DiGraph[Cluster | Node], is_up: bool) -> bool:
     lines = []
     for v in T[cluster]:
         if v.type == GType.VERTICAL_BORDER:
@@ -219,11 +219,11 @@ def has_large_gaps_in_frame(cluster: Cluster, T: nx.DiGraph[Cluster | GNode], is
 
 
 def get_marked_nodes(
-  G: nx.DiGraph[GNode],
-  T: nx.DiGraph[GNode | Cluster],
-  old_marked_nodes: set[GNode],
+  G: nx.DiGraph[Node],
+  T: nx.DiGraph[Node | Cluster],
+  old_marked_nodes: set[Node],
   is_up: bool,
-) -> set[GNode]:
+) -> set[Node]:
     marked_nodes = set()
     for cluster in T:
         if cluster.type != GType.CLUSTER or cluster.nesting_level != 1:
@@ -261,7 +261,7 @@ def get_marked_nodes(
     return marked_nodes
 
 
-def balance(G: nx.DiGraph[GNode], layouts: list[list[float]]) -> None:
+def balance(G: nx.DiGraph[Node], layouts: list[list[float]]) -> None:
 
     def min_y(layout: Sequence[float]) -> float:
         return min([y - v.height for v, y in zip(G, layout)])
@@ -286,7 +286,7 @@ _ITER_LIMIT = 20
 _DIRECTION_TO_IDX = {'RIGHT_DOWN': 0, 'RIGHT_UP': 1, 'LEFT_DOWN': 2, 'LEFT_UP': 3}
 
 
-def bk_assign_y_coords(G: nx.MultiDiGraph[GNode], T: nx.DiGraph[GNode | Cluster]) -> None:
+def bk_assign_y_coords(G: nx.MultiDiGraph[Node], T: nx.DiGraph[Node | Cluster]) -> None:
     columns = G.graph['columns']
     for col in columns:
         col.reverse()

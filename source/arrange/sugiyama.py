@@ -18,8 +18,8 @@ from .graph import (
   TO_SOCKET,
   Cluster,
   ClusterGraph,
-  GNode,
   GType,
+  Node,
   Socket,
   get_reroute_paths,
   is_real,
@@ -45,7 +45,7 @@ def precompute_links(ntree: NodeTree) -> None:
             config.linked_sockets[link.from_socket].add(link.to_socket)
 
 
-def get_multidigraph() -> nx.MultiDiGraph[GNode]:
+def get_multidigraph() -> nx.MultiDiGraph[Node]:
     parents = {
       n.parent: Cluster(cast(NodeFrame | None, n.parent), None)  # type: ignore
       for n in get_ntree().nodes}
@@ -55,7 +55,7 @@ def get_multidigraph() -> nx.MultiDiGraph[GNode]:
 
     G = nx.MultiDiGraph()
     G.add_nodes_from([
-      GNode(n, parents[n.parent]) for n in config.selected if n.bl_idname != 'NodeFrame'])
+      Node(n, parents[n.parent]) for n in config.selected if n.bl_idname != 'NodeFrame'])
     for u in G:
         for i, from_output in enumerate(u.node.outputs):
             for to_input in config.linked_sockets[from_output]:
@@ -69,7 +69,7 @@ def get_multidigraph() -> nx.MultiDiGraph[GNode]:
     return G
 
 
-def save_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
+def save_multi_input_orders(G: nx.MultiDiGraph[Node]) -> None:
     links = {(l.from_socket, l.to_socket): l for l in get_ntree().links}
     for v, w, d in G.edges.data():
         to_socket = d[TO_SOCKET]
@@ -89,7 +89,7 @@ def save_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
         config.multi_input_sort_ids[to_socket].append((base_from_socket, link.multi_input_sort_id))
 
 
-def add_columns(G: nx.DiGraph[GNode]) -> None:
+def add_columns(G: nx.DiGraph[Node]) -> None:
     columns = [list(c) for c in group_by(G, key=lambda v: v.rank, sort=True)]
     G.graph['columns'] = columns
 
@@ -121,14 +121,14 @@ def dissolve_dummy_nodes(CG: ClusterGraph) -> None:
 # -------------------------------------------------------------------
 
 
-def get_foreign_sockets_of(path: Sequence[GNode], G: nx.DiGraph[GNode]) -> list[Socket]:
+def get_foreign_sockets_of(path: Sequence[Node], G: nx.DiGraph[Node]) -> list[Socket]:
     inputs = G.in_edges(path[0], data=FROM_SOCKET)
     outputs = G.out_edges(path[-1], data=TO_SOCKET)
     return [e[2] for e in chain(inputs, outputs)]
 
 
 def align_reroutes_with_sockets(CG: ClusterGraph) -> None:
-    reroute_paths: dict[tuple[GNode, ...], list[Socket]] = {}
+    reroute_paths: dict[tuple[Node, ...], list[Socket]] = {}
     for p in get_reroute_paths(CG, preserve_reroute_clusters=False, must_be_aligned=True):
         reroute_paths[tuple(p)] = get_foreign_sockets_of(p, CG.G)
 

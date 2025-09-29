@@ -11,14 +11,14 @@ from typing import TYPE_CHECKING
 import networkx as nx
 
 from ..utils import group_by
-from .graph import GNode, GType, MultiEdge, opposite
+from .graph import GType, MultiEdge, Node, opposite
 
 if TYPE_CHECKING:
     from .sugiyama import ClusterGraph
 
 
 # https://api.semanticscholar.org/CorpusID:14932050
-def get_nesting_graph(CG: ClusterGraph) -> nx.MultiDiGraph[GNode]:
+def get_nesting_graph(CG: ClusterGraph) -> nx.MultiDiGraph[Node]:
     H = CG.G.copy()
     for u, v in CG.T.edges:
         if u.type == GType.CLUSTER:
@@ -31,12 +31,12 @@ def get_nesting_graph(CG: ClusterGraph) -> nx.MultiDiGraph[GNode]:
 
 
 @cache
-def get_adj_edges_H(H: nx.MultiDiGraph[GNode], v: GNode) -> tuple[MultiEdge, ...]:
+def get_adj_edges_H(H: nx.MultiDiGraph[Node], v: Node) -> tuple[MultiEdge, ...]:
     return (*H.in_edges(v, keys=True), *H.out_edges(v, keys=True))
 
 
 @cache
-def get_adj_edges_T(T: nx.MultiDiGraph[GNode], v: GNode) -> tuple[MultiEdge, ...]:
+def get_adj_edges_T(T: nx.MultiDiGraph[Node], v: Node) -> tuple[MultiEdge, ...]:
     return (*T.in_edges(v, keys=True), *T.out_edges(v, keys=True))
 
 
@@ -47,9 +47,9 @@ def get_slack(e: MultiEdge) -> int:
 
 
 def tight_tree(
-  H: nx.MultiDiGraph[GNode],
-  T: nx.MultiDiGraph[GNode],
-  v: GNode,
+  H: nx.MultiDiGraph[Node],
+  T: nx.MultiDiGraph[Node],
+  v: Node,
   visited: set[MultiEdge] | None = None,
 ) -> int:
     if visited is None:
@@ -74,11 +74,11 @@ def tight_tree(
     return len(T)
 
 
-def set_post_order_numbers(v: GNode, T: nx.MultiDiGraph[GNode]) -> None:
+def set_post_order_numbers(v: Node, T: nx.MultiDiGraph[Node]) -> None:
     visited = set()
     num = 0
 
-    def recurse(w: GNode) -> int:
+    def recurse(w: Node) -> int:
         nums = []
         for e in get_adj_edges_T(T, w):
             if e in visited:
@@ -96,7 +96,7 @@ def set_post_order_numbers(v: GNode, T: nx.MultiDiGraph[GNode]) -> None:
     recurse(v)
 
 
-def compute_cut_values(H: nx.MultiDiGraph[GNode], T: nx.MultiDiGraph[GNode]) -> None:
+def compute_cut_values(H: nx.MultiDiGraph[Node], T: nx.MultiDiGraph[Node]) -> None:
     unknown_cut_values = {}
     leaves = []
     for v in H:
@@ -131,7 +131,7 @@ def compute_cut_values(H: nx.MultiDiGraph[GNode], T: nx.MultiDiGraph[GNode]) -> 
             v = w if u == v else u
 
 
-def feasible_tree(H: nx.MultiDiGraph[GNode]) -> nx.MultiDiGraph[GNode]:
+def feasible_tree(H: nx.MultiDiGraph[Node]) -> nx.MultiDiGraph[Node]:
     generations = nx.topological_generations(nx.reverse_view(H))  # type: ignore
     for i, col in enumerate(reversed(tuple(generations))):
         for v in col:
@@ -153,11 +153,11 @@ def feasible_tree(H: nx.MultiDiGraph[GNode]) -> nx.MultiDiGraph[GNode]:
     return T
 
 
-def leave_edge(T: nx.MultiDiGraph[GNode]) -> MultiEdge | None:
+def leave_edge(T: nx.MultiDiGraph[Node]) -> MultiEdge | None:
     return next(((u, v, k) for u, v, k, c in T.edges.data('cut_value', keys=True) if c < 0), None)
 
 
-def is_in_head(v: GNode, e: MultiEdge) -> bool:
+def is_in_head(v: Node, e: MultiEdge) -> bool:
     u, w, _ = e
 
     if u.lowest_po_num <= v.po_num and v.po_num <= u.po_num and w.lowest_po_num <= v.po_num and v.po_num <= w.po_num:
@@ -166,14 +166,14 @@ def is_in_head(v: GNode, e: MultiEdge) -> bool:
     return u.po_num < w.po_num
 
 
-def enter_edge(H: nx.MultiDiGraph[GNode], e: MultiEdge) -> MultiEdge:
+def enter_edge(H: nx.MultiDiGraph[Node], e: MultiEdge) -> MultiEdge:
     edges = [f for f in H.edges(keys=True) if is_in_head(f[0], e) and not is_in_head(f[1], e)]
     return min(edges, key=get_slack)
 
 
 def exchange(
-  H: nx.MultiDiGraph[GNode],
-  T: nx.MultiDiGraph[GNode],
+  H: nx.MultiDiGraph[Node],
+  T: nx.MultiDiGraph[Node],
   leave: MultiEdge,
   enter: MultiEdge,
 ) -> None:
@@ -194,7 +194,7 @@ def exchange(
     compute_cut_values(H, T)
 
 
-def normalize_and_balance(CG: ClusterGraph, H: nx.DiGraph[GNode]) -> None:
+def normalize_and_balance(CG: ClusterGraph, H: nx.DiGraph[Node]) -> None:
     for cc in nx.weakly_connected_components(CG.G):
         c = next(iter(cc)).cluster
         assert c

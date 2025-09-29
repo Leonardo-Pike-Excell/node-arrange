@@ -18,9 +18,9 @@ from .graph import (
   Cluster,
   ClusterGraph,
   Edge,
-  GNode,
   GType,
   MultiEdge,
+  Node,
   Socket,
   get_socket_y,
   is_real,
@@ -31,8 +31,8 @@ from .graph import (
 
 @dataclass(slots=True)
 class NodeStack:
-    rep_node: GNode
-    path: list[GNode]
+    rep_node: Node
+    path: list[Node]
     stack_sockets_to_originals: dict[Socket, Socket] = field(default_factory=dict)
 
 
@@ -88,7 +88,7 @@ def deterministic_hopcroft_karp_matching(G: nx.Graph[T], top_nodes: Iterable[T])
     return {k: v for k, v in (pair_U | pair_V).items() if v is not None}
 
 
-def max_linear_branching(G: nx.MultiDiGraph[GNode]) -> nx.MultiDiGraph[GNode]:
+def max_linear_branching(G: nx.MultiDiGraph[Node]) -> nx.MultiDiGraph[Node]:
     # To make results deterministic
     nodes = sorted(G, key=node_name)
     edges = sorted(G.edges(keys=False), key=lambda e: node_name(e[0]) + node_name(e[1]))
@@ -96,7 +96,7 @@ def max_linear_branching(G: nx.MultiDiGraph[GNode]) -> nx.MultiDiGraph[GNode]:
     out_nodes = [(v, 'out') for v in nodes]
     in_nodes = [(v, 'in') for v in nodes]
 
-    B: nx.Graph[tuple[GNode, str]] = nx.Graph()
+    B: nx.Graph[tuple[Node, str]] = nx.Graph()
     B.add_nodes_from(out_nodes, bipartite=0)
     B.add_nodes_from(in_nodes, bipartite=1)
     for u, v in edges:
@@ -116,7 +116,7 @@ _WEIGHT = 'weight'
 
 
 # http://dx.doi.org/10.1016/S0020-0190(02)00491-X
-def minimum_feedback_arc_set(G: nx.MultiDiGraph[GNode]) -> set[MultiEdge]:
+def minimum_feedback_arc_set(G: nx.MultiDiGraph[Node]) -> set[MultiEdge]:
     G_ = G.copy()
     while not nx.is_directed_acyclic_graph(G_):
         C = tuple((G_.subgraph(next(nx.simple_cycles(G_))).edges))
@@ -139,8 +139,8 @@ def minimum_feedback_arc_set(G: nx.MultiDiGraph[GNode]) -> set[MultiEdge]:
 
 
 def edges_preventing_acyclic_contraction(
-  G: nx.MultiDiGraph[GNode],
-  K: nx.MultiDiGraph[GNode],
+  G: nx.MultiDiGraph[Node],
+  K: nx.MultiDiGraph[Node],
 ) -> list[Edge]:
     G_ = G.copy()
     for u, v, k, d in tuple(G_.edges(data=True, keys=True)):
@@ -156,8 +156,8 @@ def edges_preventing_acyclic_contraction(
 
 
 def relabel_sockets(
-  edges: nx.classes.reportviews.OutMultiEdgeView[GNode],
-  v: GNode,
+  edges: nx.classes.reportviews.OutMultiEdgeView[Node],
+  v: Node,
   node_stack: NodeStack,
   y: float,
 ) -> None:
@@ -195,7 +195,7 @@ def contracted_node_stacks(CG: ClusterGraph) -> list[NodeStack]:
       if is_real(v)
       and v.node.hide
       and v.node.bl_idname in {'ShaderNodeMath', 'ShaderNodeVectorMath'}]
-    H: nx.MultiDiGraph[GNode] = nx.MultiDiGraph(G.subgraph(collapsed_math_nodes))
+    H: nx.MultiDiGraph[Node] = nx.MultiDiGraph(G.subgraph(collapsed_math_nodes))
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -226,8 +226,8 @@ def contracted_node_stacks(CG: ClusterGraph) -> list[NodeStack]:
         if len(c) == 1:
             continue
 
-        rep_node = GNode(type=GType.STACK)
-        path: list[GNode] = sorted(c, key=order.get)  # type: ignore
+        rep_node = Node(type=GType.STACK)
+        path: list[Node] = sorted(c, key=order.get)  # type: ignore
         node_stack = NodeStack(rep_node, path)
 
         y = 0

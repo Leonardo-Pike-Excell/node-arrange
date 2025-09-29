@@ -7,7 +7,7 @@ from math import isclose
 from statistics import fmean
 
 import networkx as nx
-from bpy.types import Node
+from bpy.types import Node as BlenderNode
 from mathutils import Vector
 
 from .. import config
@@ -17,8 +17,8 @@ from .graph import (
   TO_SOCKET,
   Cluster,
   ClusterGraph,
-  GNode,
   GType,
+  Node,
   Socket,
   add_dummy_edge,
   get_reroute_paths,
@@ -27,7 +27,7 @@ from .graph import (
 )
 
 
-def is_safe_to_remove(v: GNode) -> bool:
+def is_safe_to_remove(v: Node) -> bool:
     if not is_real(v):
         return True
 
@@ -45,7 +45,7 @@ def is_safe_to_remove(v: GNode) -> bool:
       ))
 
 
-def dissolve_reroute_edges(G: nx.DiGraph[GNode], path: list[GNode]) -> None:
+def dissolve_reroute_edges(G: nx.DiGraph[Node], path: list[Node]) -> None:
     if not G[path[-1]]:
         return
 
@@ -87,7 +87,7 @@ def remove_reroutes(CG: ClusterGraph) -> None:
 _Y_TOL = 5
 
 
-def simplify_path(CG: ClusterGraph, path: list[GNode]) -> None:
+def simplify_path(CG: ClusterGraph, path: list[Node]) -> None:
     G = CG.G
     pred_output = lambda w: next(iter(G.in_edges(w, data=FROM_SOCKET)))[2]
     succ_input = lambda w: next(iter(G.out_edges(w, data=TO_SOCKET)))[2]
@@ -127,7 +127,7 @@ def simplify_path(CG: ClusterGraph, path: list[GNode]) -> None:
         path.remove(v)
 
 
-def add_reroute(v: GNode) -> None:
+def add_reroute(v: Node) -> None:
     reroute = get_ntree().nodes.new(type='NodeReroute')
     assert v.cluster
     reroute.parent = v.cluster.node
@@ -136,7 +136,7 @@ def add_reroute(v: GNode) -> None:
     v.type = GType.NODE
 
 
-def realize_edges(G: nx.DiGraph[GNode]) -> None:
+def realize_edges(G: nx.DiGraph[Node]) -> None:
     links = get_ntree().links
     for u, v, d in G.edges.data():
         if u.is_reroute or v.is_reroute:
@@ -154,7 +154,7 @@ def realize_dummy_nodes(CG: ClusterGraph) -> None:
     realize_edges(CG.G)
 
 
-def restore_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
+def restore_multi_input_orders(G: nx.MultiDiGraph[Node]) -> None:
     links = get_ntree().links
     H = socket_graph(G)
     for socket, sort_ids in config.multi_input_sort_ids.items():
@@ -184,12 +184,12 @@ def restore_multi_input_orders(G: nx.MultiDiGraph[GNode]) -> None:
             seen.add(from_socket)
 
 
-def realize_locations(G: nx.DiGraph[GNode], old_center: Vector) -> None:
+def realize_locations(G: nx.DiGraph[Node], old_center: Vector) -> None:
     new_center = (fmean([v.x for v in G]), fmean([v.y for v in G]))
     offset_x, offset_y = -Vector(new_center) + old_center
 
     for v in G:
-        assert isinstance(v.node, Node)
+        assert isinstance(v.node, BlenderNode)
         assert v.cluster
 
         # Optimization: avoid using bpy.ops for as many nodes as possible (see `utils.move()`)
