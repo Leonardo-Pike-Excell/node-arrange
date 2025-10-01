@@ -144,7 +144,7 @@ def realize_edges(G: nx.DiGraph[Node]) -> None:
 
 
 def realize_dummy_nodes(CG: ClusterGraph) -> None:
-    for path in get_reroute_paths(CG, is_safe_to_remove, must_be_aligned=True):
+    for path in get_reroute_paths(CG, is_safe_to_remove, aligned=True):
         simplify_path(CG, path)
 
         for v in path:

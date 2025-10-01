@@ -533,14 +533,14 @@ def get_reroute_paths(
   function: Callable | None = None,
   *,
   preserve_reroute_clusters: bool = True,
-  must_be_aligned: bool = False,
-  must_be_linear: bool = True,
+  aligned: bool = False,
+  linear: bool = True,
 ) -> list[list[Node]]:
     G = CG.G
     reroutes = {v for v in G if v.is_reroute and (not function or function(v))}
     H = nx.DiGraph(G.subgraph(reroutes))
 
-    K = G if must_be_linear else H
+    K = G if linear else H
     for v in H:
         if K.out_degree[v] > 1:
             H.remove_edges_from(tuple(H.out_edges(v)))
@@ -553,7 +553,7 @@ def get_reroute_paths(
           (u, v) for u, v in H.edges
           if u.cluster != v.cluster and {u.cluster, v.cluster} & reroute_clusters])
 
-    if must_be_aligned:
+    if aligned:
         H.remove_edges_from([(u, v) for u, v in H.edges if u.y != v.y])
 
     indicies = {v: i for i, v in enumerate(nx.topological_sort(G)) if v in reroutes}
