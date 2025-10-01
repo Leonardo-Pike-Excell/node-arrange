@@ -538,25 +538,25 @@ def get_reroute_paths(
 ) -> list[list[Node]]:
     G = CG.G
     reroutes = {v for v in G if v.is_reroute and (not function or function(v))}
-    SG = nx.DiGraph(G.subgraph(reroutes))
+    H = nx.DiGraph(G.subgraph(reroutes))
 
-    K = G if must_be_linear else SG
-    for v in SG:
+    K = G if must_be_linear else H
+    for v in H:
         if K.out_degree[v] > 1:
-            SG.remove_edges_from(tuple(SG.out_edges(v)))
+            H.remove_edges_from(tuple(H.out_edges(v)))
 
     if preserve_reroute_clusters:
         reroute_clusters = {#
           c for c in CG.S
           if all(v.is_reroute for v in CG.T[c] if v.type != Kind.CLUSTER)}
-        SG.remove_edges_from([#
-          (u, v) for u, v in SG.edges
+        H.remove_edges_from([#
+          (u, v) for u, v in H.edges
           if u.cluster != v.cluster and {u.cluster, v.cluster} & reroute_clusters])
 
     if must_be_aligned:
-        SG.remove_edges_from([(u, v) for u, v in SG.edges if u.y != v.y])
+        H.remove_edges_from([(u, v) for u, v in H.edges if u.y != v.y])
 
     indicies = {v: i for i, v in enumerate(nx.topological_sort(G)) if v in reroutes}
-    paths = [sorted(c, key=lambda v: indicies[v]) for c in nx.weakly_connected_components(SG)]
+    paths = [sorted(c, key=lambda v: indicies[v]) for c in nx.weakly_connected_components(H)]
     paths.sort(key=lambda p: sum([indicies[v] for v in p]))
     return paths
