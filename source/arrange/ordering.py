@@ -278,8 +278,8 @@ def get_barycenter(v: Node | Cluster) -> float:
     return barycenter
 
 
-def fill_in_unknown_barycenters(col: list[Node | Cluster], is_first_iter: bool) -> None:
-    if is_first_iter:
+def fill_in_unknown_barycenters(col: list[Node | Cluster], is_first_sweep: bool) -> None:
+    if is_first_sweep:
         max_b = max([b for v in col if (b := v.cr.barycenter) is not None], default=0) + 2
         for v in col:
             if v.cr.barycenter is None:
