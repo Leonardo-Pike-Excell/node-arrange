@@ -474,8 +474,8 @@ def minimized_cross_count(
             best_columns = [c.copy() for c in columns]
             is_first_sweep = False
         else:
-            for first_col, best_col in zip(columns, best_columns):
-                first_col.sort(key=best_col.index)
+            for col, best_col in zip(columns, best_columns):
+                col.sort(key=best_col.index)
             break
 
     return old_cross_count
