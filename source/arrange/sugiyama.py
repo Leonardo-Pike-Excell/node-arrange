@@ -129,7 +129,7 @@ def get_foreign_sockets_of(path: Sequence[Node], G: nx.DiGraph[Node]) -> list[So
 
 def align_reroutes_with_sockets(CG: ClusterGraph) -> None:
     reroute_paths: dict[tuple[Node, ...], list[Socket]] = {}
-    for p in get_reroute_paths(CG, preserve_reroute_clusters=False, must_be_aligned=True):
+    for p in get_reroute_paths(CG, preserve_reroute_clusters=False, must_be_aligned=True, must_be_linear=False):
         reroute_paths[tuple(p)] = get_foreign_sockets_of(p, CG.G)
 
     reroute_path_of = {v: p for p in reroute_paths for v in p}
