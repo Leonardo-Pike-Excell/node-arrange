@@ -259,17 +259,16 @@ def calc_socket_ranks(H: _CrossingReductionGraph, is_forwards: bool) -> None:
             v.cr.socket_ranks[socket] = rank
 
 
+def random_perturbation() -> float:
+    random_amount = random.uniform(-1, 1)
+    return random.uniform(0, 1) * random_amount - random_amount / 2
+
+
 def calc_barycenters(H: _CrossingReductionGraph) -> None:
     for w in H.reduced_free_col:
-        sockets = H.free_sockets[w]
-
-        if not sockets:
-            continue
-
-        random_amount = random.uniform(-1, 1)
-        w.cr.barycenter = (
-          fmean([s.owner.cr.socket_ranks[s] for s in sockets]) +
-          (random.uniform(0, 1) * random_amount - random_amount / 2))
+        if sockets := H.free_sockets[w]:
+            w.cr.barycenter = (
+              fmean([s.owner.cr.socket_ranks[s] for s in sockets]) + random_perturbation())
 
 
 def get_barycenter(v: Node | Cluster) -> float:
@@ -283,7 +282,7 @@ def fill_in_unknown_barycenters(col: list[Node | Cluster], is_first_sweep: bool)
         max_b = max([b for v in col if (b := v.cr.barycenter) is not None], default=0) + 2
         for v in col:
             if v.cr.barycenter is None:
-                v.cr.barycenter = random.uniform(0, 1) * max_b - 1
+                v.cr.barycenter = random.uniform(0, 1) * max_b - 1 + random_perturbation()
         return
 
     for i, v in enumerate(col):
@@ -292,7 +291,7 @@ def fill_in_unknown_barycenters(col: list[Node | Cluster], is_first_sweep: bool)
 
         prev_b = get_barycenter(col[i - 1]) if i != 0 else 0
         next_b = next((b for w in col[i + 1:] if (b := w.cr.barycenter) is not None), prev_b + 1)
-        v.cr.barycenter = (prev_b + next_b) / 2
+        v.cr.barycenter = (prev_b + next_b) / 2 + random_perturbation()
 
 
 def find_violated_constraint(GC: _MixedGraph) -> tuple[Node | Cluster, Node | Cluster] | None:
