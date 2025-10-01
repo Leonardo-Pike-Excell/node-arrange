@@ -313,13 +313,13 @@ def bk_assign_y_coords(G: nx.MultiDiGraph[Node], T: nx.DiGraph[Node | Cluster]) 
                 if new_marked_nodes := get_marked_nodes(G, T, marked_nodes, is_up):
                     marked_nodes.update(new_marked_nodes)
                     for v in G:
-                        v.reset()
+                        v.bk_reset()
                 else:
                     break
             layouts.append([v.y * -dir_y for v in G])
 
             for v in G:
-                v.reset()
+                v.bk_reset()
 
             for col in columns:
                 col.reverse()

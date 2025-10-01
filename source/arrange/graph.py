@@ -121,12 +121,12 @@ class Node:
         self.cr = CrossingReduction()
 
         self.x = None  # type: ignore
-        self.reset()
+        self.bk_reset()
 
     def __hash__(self) -> int:
         return id(self)
 
-    def reset(self) -> None:
+    def bk_reset(self) -> None:
         self.root = self
         self.aligned = self
         self.inner_shift = 0
