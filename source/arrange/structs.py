@@ -48,6 +48,7 @@ class bNodeSocket(ctypes.Structure):
     description: ctypes.c_char * 64
     short_label: ctypes.c_char * 64
     default_attribute_name: ctypes.POINTER(ctypes.c_char)
+    own_index: ctypes.c_int
     to_index: ctypes.c_int
     link: ctypes.c_void_p
     ns: bNodeStack
