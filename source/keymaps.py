@@ -10,6 +10,7 @@ def register() -> None:
     if kc := bpy.context.window_manager.keyconfigs.addon:
         km = kc.keymaps.new(name='Node Editor', space_type="NODE_EDITOR")
         kmi = km.keymap_items.new("node.na_recenter_selected", type='G', value='PRESS', alt=True)
+        kmi = km.keymap_items.new("node.na_arrange_selected", type='A', value='PRESS', ctrl=True)
         addon_keymaps.append((km, kmi))
 
 
