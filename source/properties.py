@@ -27,6 +27,8 @@ _MODE_KWARGS = dict(
 class NA_PG_Settings(PropertyGroup):
     arrange_mode: EnumProperty(**_MODE_KWARGS, description="What to arrange")
 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
     margin: IntVectorProperty(
       name="Spacing",
       description="Space between nodes",
