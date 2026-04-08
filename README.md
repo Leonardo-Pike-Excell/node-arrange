@@ -14,5 +14,7 @@ Node Editor ‣ Sidebar ‣ Arrange
 
 ## Shortcuts
 
-* <kbd>Ctrl</kbd>-<kbd>Shift</kbd>-<kbd>A</kbd> — Arrange selected nodes
-* <kbd>Alt</kbd>-<kbd>G</kbd> — Recenter selected nodes
+* Arrange selected nodes<br>
+    <kbd>Ctrl</kbd>-<kbd>Shift</kbd>-<kbd>A</kbd> / <kbd>Cmd</kbd>-<kbd>Shift</kbd>-<kbd>A</kbd>
+* Recenter selected nodes<br>
+    <kbd>Alt</kbd>-<kbd>G</kbd>
