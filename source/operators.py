@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import blf
 from collections.abc import Iterable
 from operator import attrgetter
 from statistics import fmean
@@ -7,7 +8,7 @@ from typing import Type, cast
 
 import bpy
 from bl_operators.node_editor.node_functions import node_editor_poll
-from bpy.types import Context, Operator
+from bpy.types import Context, Operator, Node
 from mathutils import Vector
 
 from . import config
@@ -37,7 +38,7 @@ class NA_OT_ArrangeSelected(NodeOperator, Operator):
 
     def execute(self, context: Context) -> set[str]:
         ntree = get_ntree()
-        selected = [n for n in ntree.nodes if n.select]
+        selected: list[Node] = [n for n in ntree.nodes if n.select]
 
         if not selected:
             self.report({'WARNING'}, "No nodes selected")
@@ -46,6 +47,19 @@ class NA_OT_ArrangeSelected(NodeOperator, Operator):
         config.selected = selected
         config.SETTINGS = context.scene.na_settings  # type: ignore
         config.MARGIN = Vector(config.SETTINGS.margin).freeze()
+
+        for node in selected :
+            if node.hide:
+                display_name = node.label if node.label else node.name
+                # admittedly not the best model that I got from desmos
+                # predicted_width = len(display_name) * 7.76978 + 36.54676
+                text_width, text_height = blf.dimensions(0, display_name)
+                predicted_width = text_width + 50
+
+                if predicted_width < node.bl_width_min:
+                    predicted_width = node.bl_width_min
+                
+                node.width = predicted_width
 
         try:
             sugiyama_layout(ntree)
