@@ -26,6 +26,8 @@ class bNodeSocketRuntime(ctypes.Structure):
     if platform.system() == 'Windows':
         _pad0: ctypes.c_char * 8
     declaration: ctypes.c_void_p
+    if bpy.app.version >= (5, 2, 0):
+        identifier_ustr: ctypes.c_char * 8
     changed_flag: ctypes.c_uint32
     total_inputs: ctypes.c_short
     if bpy.app.version >= (5, 0, 0):
