@@ -128,7 +128,7 @@ def batch_modify(bl_data: Iterable[bpy.types.ID], cls: Type[Operator], *, redraw
 class NA_OT_BatchArrange(NodeOperator, Operator):
     bl_idname = "node.na_batch_arrange"
     bl_label = "Arrange All Node Trees"
-    bl_description = "Arrange all node trees in the current .blend file with the below settings.\nWarning: May be slow if there are expensive node trees, due to re-evaluation"
+    bl_description = "Arrange all node trees in the current .blend file with the above settings.\nWarning: May be slow if there are expensive node trees, due to re-evaluation"
 
     def execute(self, context: Context):
         bl_data = get_all_ntrees()
@@ -186,7 +186,7 @@ class NA_OT_RecenterSelected(NodeOperator, Operator):
 class NA_OT_BatchRecenter(NodeOperator, Operator):
     bl_idname = "node.na_batch_recenter"
     bl_label = "Recenter All Node Trees"
-    bl_description = "Recenter all node trees in the current .blend file with the below settings"
+    bl_description = "Recenter all node trees in the current .blend file with the above settings"
 
     def execute(self, context: Context) -> set[str]:
         bl_data = get_all_ntrees()
