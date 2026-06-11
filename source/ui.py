@@ -59,6 +59,7 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
             sub = col.row()
             sub.active = settings.stack_collapsed
             sub.prop(settings, "stack_margin_y_fac")
+            col.prop(settings, "optimize_sizes")
 
         layout.use_property_split = False
         layout.prop(settings, "arrange_mode", expand=True)

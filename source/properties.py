@@ -108,6 +108,12 @@ class NA_PG_Settings(PropertyGroup):
       subtype='FACTOR',
       options=set())
 
+    optimize_sizes: BoolProperty(
+      name="Optimize Sizes",
+      description="Make the widths of collapsed nodes fit their display name exactly",
+      default=False,
+      options=set())
+
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     recenter_mode: EnumProperty(**_MODE_KWARGS, description="What to recenter")

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from itertools import chain
 from statistics import fmean
 from typing import cast
 
+import blf
+import bpy
 import networkx as nx
+from bpy.types import Node as BlenderNode
 from bpy.types import NodeFrame, NodeTree
 from mathutils import Vector
 
@@ -31,6 +34,46 @@ from .realize import realize_layout, remove_reroutes
 from .stacking import contracted_node_stacks, expand_node_stack
 from .x_coords import assign_x_coords, route_edges
 from .y_coords import bk_assign_y_coords
+
+# -------------------------------------------------------------------
+
+
+def get_display_name_of(node: BlenderNode) -> str:
+    if node.label:
+        return node.label
+
+    if node.bl_idname.endswith('NodeGroup') and node.node_tree:  # type: ignore
+        return node.node_tree.name  # type: ignore
+
+    if node.bl_idname.endswith('Math') or node.bl_idname == 'FunctionNodeCompare':
+        return node.operation  # type: ignore
+
+    relevant_node_types = {'ShaderNodeTexImage', 'ShaderNodeTexEnvironment', 'CompositorNodeImage'}
+    if node.bl_idname in relevant_node_types and node.image:  # type: ignore
+        return node.image.name  # type: ignore
+
+    return node.bl_label
+
+
+NODE_LABEL_SIZE = 11
+LABEL_LEFT_OFFSET = 23
+LABEL_RIGHT_OFFSET = LABEL_LEFT_OFFSET
+
+
+def optimize_sizes(nodes: Iterable[BlenderNode]) -> None:
+    blf.size(0, NODE_LABEL_SIZE)
+
+    for node in nodes:
+        if not node.hide:
+            continue
+
+        display_name = get_display_name_of(node)
+        optimized_width = (
+          blf.dimensions(0, display_name)[0] + LABEL_LEFT_OFFSET + LABEL_RIGHT_OFFSET)
+        node.width = max(optimized_width, node.bl_width_min)
+
+    bpy.ops.wm.redraw_timer(type='DRAW', iterations=0)
+
 
 # -------------------------------------------------------------------
 
@@ -194,6 +237,9 @@ def sugiyama_layout(ntree: NodeTree) -> None:
         return
 
     old_center = Vector(map(fmean, zip(*locs)))
+
+    if config.SETTINGS.optimize_sizes:
+        optimize_sizes(config.selected)
 
     precompute_links(ntree)
     CG = ClusterGraph(get_multidigraph())
