@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from __future__ import annotations
-
 import ctypes
 import platform
 
@@ -73,4 +71,4 @@ class bNodeSocket(ctypes.Structure):
 
 
 for cls in (bNodeStack, bNodeSocketRuntime, bNodeSocket):
-    cls._fields_ = [(k, eval(v)) for k, v in cls.__annotations__.items()]
+    cls._fields_ = list(cls.__annotations__.items())
