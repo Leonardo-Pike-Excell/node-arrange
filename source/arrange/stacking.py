@@ -119,7 +119,8 @@ _WEIGHT = 'weight'
 def minimum_feedback_arc_set(G: nx.MultiDiGraph[Node]) -> set[MultiEdge]:
     G_ = G.copy()
     while not nx.is_directed_acyclic_graph(G_):
-        C = tuple((G_.subgraph(next(nx.simple_cycles(G_))).edges))
+        pairs = nx.utils.pairwise(next(nx.simple_cycles(G_)), cyclic=True)
+        C = [(u, v, next(iter(G_[u][v]))) for u, v in pairs]
         min_weight = min([G.edges[e][_WEIGHT] for e in C])
         for u, v, k in C:
             d = G.edges[u, v, k]
