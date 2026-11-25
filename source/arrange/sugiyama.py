@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from itertools import chain
 from statistics import fmean
@@ -37,6 +38,86 @@ from .y_coords import bk_assign_y_coords
 
 # -------------------------------------------------------------------
 
+def split_group_inputs(ntree: NodeTree) -> dict[BlenderNode, str]:
+    """Replace each link leaving a selected Group Input with its own Group Input
+    that only shows the socket in use (like Ctrl+H)."""
+    links = ntree.links
+    copies: dict[BlenderNode, str] = {}  # copy -> name of original
+
+    for gi in [n for n in config.selected if n.bl_idname == 'NodeGroupInput']:
+        outputs = list(gi.outputs)
+
+        for link in [l for l in links if l.from_node == gi]:
+            to_socket = link.to_socket
+
+            if (
+              not link.is_valid
+              or link.is_hidden
+              or not link.to_node.select
+              or to_socket.is_multi_input  # would scramble the multi-input order
+            ):
+                continue
+
+            new = ntree.nodes.new('NodeGroupInput')
+            new.parent = gi.parent
+            new.location = gi.location
+            new.select = True
+
+            from_index = outputs.index(link.from_socket)
+            links.remove(link)
+            links.new(new.outputs[from_index], to_socket)
+
+            # Same effect as Ctrl+H: hide every socket except the one in use
+            for i, socket in enumerate(new.outputs):
+                socket.hide = i != from_index
+
+            config.selected.append(new)
+            copies[new] = gi.name
+
+        # Remove the original if nothing is connected to it any more
+        if not any(l.from_node == gi for l in links):
+            config.selected.remove(gi)
+            ntree.nodes.remove(gi)
+
+    if copies:
+        bpy.ops.wm.redraw_timer(type='DRAW', iterations=0)
+
+    return copies
+
+
+def merge_group_inputs(ntree: NodeTree, copies: dict[BlenderNode, str]) -> None:
+    """Merge Group Input copies of the same original that ended up close together."""
+    links = ntree.links
+    threshold = config.SETTINGS.merge_distance
+
+    groups: defaultdict[tuple[str, str | None], list[BlenderNode]] = defaultdict(list)
+    for node, origin in copies.items():
+        groups[(origin, node.parent.name if node.parent else None)].append(node)
+
+    for nodes in groups.values():
+        remaining = sorted(nodes, key=lambda n: -n.location.y)
+        while remaining:
+            keep = remaining.pop(0)
+            cluster = [keep] + [n for n in remaining if (n.location - keep.location).length <= threshold]
+            remaining = [n for n in remaining if n not in cluster]
+
+            if len(cluster) == 1:
+                continue
+
+            new_location = Vector(map(fmean, zip(*[n.location for n in cluster])))
+
+            for node in cluster[1:]:
+                for link in [l for l in links if l.from_node == node]:
+                    i = node.outputs[:].index(link.from_socket)
+                    to_socket = link.to_socket
+                    links.remove(link)
+                    links.new(keep.outputs[i], to_socket)
+                    keep.outputs[i].hide = False
+
+                config.selected.remove(node)
+                ntree.nodes.remove(node)
+
+            keep.location = new_location
 
 def get_display_name_of(node: BlenderNode) -> str:
     if node.label:
@@ -238,6 +319,8 @@ def sugiyama_layout(ntree: NodeTree) -> None:
 
     old_center = Vector(map(fmean, zip(*locs)))
 
+    copies = split_group_inputs(ntree) if config.SETTINGS.split_group_inputs else {}
+
     if config.SETTINGS.optimize_sizes:
         optimize_sizes(config.selected)
 
@@ -278,3 +361,6 @@ def sugiyama_layout(ntree: NodeTree) -> None:
             expand_node_stack(CG, node_stack)
 
     realize_layout(CG, old_center)
+
+    if copies and config.SETTINGS.merge_group_inputs:
+        merge_group_inputs(ntree, copies)

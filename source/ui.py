@@ -60,6 +60,12 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
             sub.active = settings.stack_collapsed
             sub.prop(settings, "stack_margin_y_fac")
             col.prop(settings, "optimize_sizes")
+            col.separator()
+            col.prop(settings, "split_group_inputs")
+            sub = col.column()
+            sub.active = settings.split_group_inputs
+            sub.prop(settings, "merge_group_inputs")
+            sub.prop(settings, "merge_distance")
 
         layout.use_property_split = False
         layout.prop(settings, "arrange_mode", expand=True)
@@ -68,6 +74,8 @@ class NA_PT_ArrangeSelected(NodePanel, Panel):
             layout.operator("node.na_arrange_selected", text="Arrange Selected Nodes")
         else:
             layout.operator("node.na_batch_arrange")
+
+        layout.operator("node.na_merge_group_inputs")
 
 
 class NA_PT_ClearLocations(NodePanel, Panel):

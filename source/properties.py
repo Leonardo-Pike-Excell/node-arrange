@@ -29,6 +29,27 @@ class NA_PG_Settings(PropertyGroup):
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+    split_group_inputs: BoolProperty(
+      name="Split Group Inputs",
+      description="Create a separate Group Input node for every link, showing only the used socket, placed next to its target",
+      default=True,
+      options=set())
+
+    merge_group_inputs: BoolProperty(
+      name="Merge Close Group Inputs",
+      description="After arranging, merge Group Input nodes that ended up close together",
+      default=True,
+      options=set())
+
+    merge_distance: IntProperty(
+      name="Merge Distance",
+      description="Group Input nodes closer than this (in node-editor units) are merged",
+      default=200,
+      min=0,
+      options=set())
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
     margin: IntVectorProperty(
       name="Spacing",
       description="Space between nodes",
