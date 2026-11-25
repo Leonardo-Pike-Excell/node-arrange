@@ -195,11 +195,47 @@ class NA_OT_BatchRecenter(NodeOperator, Operator):
         return {'FINISHED'}
 
 
+class NA_OT_MergeGroupInputs(NodeOperator, Operator):
+    bl_idname = "node.na_merge_group_inputs"
+    bl_label = "Merge Group Inputs"
+    bl_description = "Merge the selected Group Input nodes into one (the active one, or the topmost)"
+
+    def execute(self, context: Context) -> set[str]:
+        ntree = get_ntree()
+        selected = [n for n in ntree.nodes if n.select and n.bl_idname == 'NodeGroupInput']
+
+        if len(selected) < 2:
+            self.report({'WARNING'}, "Select at least two Group Input nodes")
+            return {'CANCELLED'}
+
+        active = ntree.nodes.active
+        keep = active if active in selected else max(selected, key=lambda n: abs_loc(n).y)
+
+        links = ntree.links
+        for node in selected:
+            if node == keep:
+                continue
+
+            for link in [l for l in links if l.from_node == node]:
+                i = node.outputs[:].index(link.from_socket)
+                to_socket = link.to_socket
+                links.remove(link)
+                keep.outputs[i].hide = False
+                links.new(keep.outputs[i], to_socket)
+
+            ntree.nodes.remove(node)
+
+        keep.select = True
+        ntree.nodes.active = keep
+        return {'FINISHED'}
+
+
 classes = (
   NA_OT_ArrangeSelected,
   NA_OT_BatchArrange,
   NA_OT_RecenterSelected,
   NA_OT_BatchRecenter,
+  NA_OT_MergeGroupInputs,
 )
 
 
